@@ -1,6 +1,6 @@
 import { Router } from 'express'
 
-import { createPageAccount, loginUser, registerUser, resendVerificationCode, verifyUser } from '../controllers/authController.js'
+import { createPageAccount, loginUser, registerUser, resendVerificationCode, sendInvitations, verifyUser } from '../controllers/authController.js'
 import { createPageRecord, getPageRecordBySlug, getPageRecordByOwner, listPageRecords } from '../utils/pagePersistence.js'
 import { listPageUsersFromMongo } from '../utils/userPersistence.js'
 import { authMiddleware } from '../middleware/authMiddleware.js'
@@ -85,6 +85,7 @@ router.get('/pages/:slug', authMiddleware, async (req, res) => {
   }
 })
 router.post('/create-page-account', authMiddleware, requireRole('admin'), createPageAccount)
+router.post('/invite', authMiddleware, requireRole('admin'), sendInvitations)
 router.post('/login', loginUser)
 router.post('/verify', verifyUser)
 router.post('/verify/resend', resendVerificationCode)

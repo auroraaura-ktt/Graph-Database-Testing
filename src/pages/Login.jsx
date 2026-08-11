@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 
 import { useAuth } from '../context/useAuth'
 import { apiRequest } from '../lib/api'
+import { canAccessUserApp } from '../lib/authAccess'
 import '../styles/AuthDesign.css'
 
 export default function Login() {
@@ -21,6 +22,11 @@ export default function Login() {
     try {
       const data = await login(form)
       const user = data.user
+
+      if (!canAccessUserApp(user.role)) {
+        setError('This account is not allowed to access the regular user area.')
+        return
+      }
 
       if (user.role === 'page') {
         const normalizeSlug = (value = '') =>

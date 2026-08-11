@@ -93,7 +93,7 @@ export async function verifyEmailConnection() {
  * @param {string} html - HTML content
  * @returns {Promise<boolean>}
  */
-export async function sendEmail(to, subject, html) {
+export async function sendEmail(to, subject, html, text = '') {
   if (!env.sendgridApiKey) {
     console.error('SendGrid API key not configured')
     throw new Error('Email service not configured - SendGrid API key missing')
@@ -104,6 +104,7 @@ export async function sendEmail(to, subject, html) {
     from: `${env.sendgridFromName} <${env.sendgridFromEmail}>`,
     subject,
     html,
+    text,
   }
 
   try {

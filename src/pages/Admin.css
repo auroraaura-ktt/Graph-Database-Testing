@@ -94,11 +94,19 @@
   background: transparent;
   color: white;
   border: none;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  position: relative;
 }
 
 .admin-nav-item:hover,
 .admin-nav-item.active {
   background: rgba(255, 255, 255, 0.15);
+}
+
+.admin-nav-item.active {
+  box-shadow: inset 3px 0 0 #f4b400;
 }
 
 /* MAIN CONTENT */
@@ -471,6 +479,146 @@
 .form-group label {
   color: #374151;
   font-weight: 700;
+}
+
+.admin-invite-section {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-invite-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid #dbe5f5;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.admin-invite-header h2 {
+  margin-top: 0;
+}
+
+.admin-invite-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 14px;
+  color: #001e62;
+  background: #ffe49b;
+  font-size: 1.25rem;
+  box-shadow: 0 10px 22px rgba(244, 180, 0, 0.22);
+}
+
+.admin-invite-form {
+  border: 1px solid #dce6f5;
+  box-shadow: 0 16px 40px rgba(15, 35, 82, 0.08);
+}
+
+.admin-invite-field {
+  gap: 10px;
+}
+
+.admin-invite-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.admin-invite-field-head span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #174287;
+  background: #eaf2ff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.admin-create-form textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid #cbd7ea;
+  border-radius: 16px;
+  padding: 16px 18px;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: #0f172a;
+  background: #fbfdff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.admin-create-form textarea::placeholder {
+  color: #8a98ad;
+}
+
+.admin-create-form textarea:focus {
+  border-color: #174ea6;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(23, 78, 166, 0.12);
+}
+
+.admin-create-form textarea:disabled {
+  color: #8a94a7;
+  background: #f3f6fb;
+  cursor: not-allowed;
+}
+
+.admin-create-form small {
+  color: #6b7280;
+}
+
+.admin-invite-form .form-submit {
+  width: fit-content;
+  min-width: 190px;
+  justify-self: end;
+  box-shadow: 0 12px 24px rgba(0, 30, 98, 0.18);
+}
+
+.admin-invite-form .form-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.admin-invite-results {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 18px;
+  margin-top: 18px;
+}
+
+.admin-invite-summary {
+  margin-bottom: 12px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.admin-invite-failed h4 {
+  margin: 0 0 10px;
+  color: #111827;
+}
+
+.admin-invite-failed ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-invite-failed li {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  margin-bottom: 10px;
+  color: #831843;
 }
 
 .form-group input {

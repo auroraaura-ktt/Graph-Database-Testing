@@ -47,6 +47,11 @@ export default function Admin() {
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [postsFilter, setPostsFilter] = useState('all') // all | user | page | suspended
 
+  const [inviteEmails, setInviteEmails] = useState('')
+  const [inviteMessage, setInviteMessage] = useState({ type: '', text: '' })
+  const [inviteResults, setInviteResults] = useState(null)
+  const [inviting, setInviting] = useState(false)
+
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true)
     setError(null)
@@ -106,6 +111,58 @@ export default function Admin() {
       ...prev,
       [name]: value,
     }))
+  }
+
+  const handleInviteEmailsChange = (e) => {
+    setInviteEmails(e.target.value)
+    setInviteMessage({ type: '', text: '' })
+    setInviteResults(null)
+  }
+
+  const handleSendInvitations = async (e) => {
+    e.preventDefault()
+    setInviteMessage({ type: '', text: '' })
+    setInviteResults(null)
+
+    const emails = inviteEmails
+      .split(/[,\n;]+/)
+      .map((email) => email.trim())
+      .filter(Boolean)
+
+    if (emails.length === 0) {
+      setInviteMessage({ type: 'error', text: 'Enter one or more valid email addresses.' })
+      return
+    }
+
+    setInviting(true)
+
+    try {
+      const data = await apiRequest('/auth/invite', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ emails }),
+      })
+
+      setInviteMessage({
+        type: 'success',
+        text: data.invited.length > 0
+          ? `Sent invitation to ${data.invited.length} address(es).`
+          : 'No invitations were sent.',
+      })
+      setInviteResults(data)
+      if (data.invited.length > 0) {
+        setInviteEmails('')
+      }
+    } catch (err) {
+      setInviteMessage({
+        type: 'error',
+        text: err.message || 'Failed to send invitations.',
+      })
+    } finally {
+      setInviting(false)
+    }
   }
 
   const handleCreateTestPost = (e) => {
@@ -406,7 +463,7 @@ export default function Admin() {
     { key: 'users', label: '👥 Manage Users' },
     { key: 'page-accounts', label: '🌐 Page Accounts' },
     { key: 'posts', label: '📝 Posts' },
-    { key: 'events', label: '📅 Events' },
+    { key: 'invitations', label: '✉ Invitations' },
     { key: 'reports', label: '🚩 Reports' },
   ]
 
@@ -415,7 +472,7 @@ export default function Admin() {
     users: 'Manage Users',
     'page-accounts': 'Page Accounts',
     posts: 'Posts',
-    events: 'Events',
+    invitations: 'Invitations',
     reports: 'Reports',
     'user-details': 'User Details',
   }
@@ -425,7 +482,7 @@ export default function Admin() {
     users: 'Create and manage personal accounts from here.',
     'page-accounts': 'Create special MIIT page accounts without email verification.',
     posts: 'Manage posts and content moderation.',
-    events: 'Create and manage upcoming events.',
+    invitations: 'Invite users via email and send a registration link.',
     reports: 'Review flagged reports and moderation tasks.',
     'user-details': 'Review account information and complete management actions.',
   }
@@ -686,7 +743,68 @@ export default function Admin() {
             )}
           </section>
         )
-      case 'events':
+      case 'invitations':
+        return (
+          <section className="admin-page-accounts admin-invite-section">
+            <div className="admin-create-header admin-invite-header">
+              <span className="admin-invite-icon" aria-hidden="true">✉</span>
+              <div>
+                <h2>Send Invitations</h2>
+                <p>Invite MIIT users by entering one or more email addresses. Each invite includes a registration link with an embedded action button.</p>
+              </div>
+            </div>
+
+            {inviteMessage.text && (
+              <p className={`message message-${inviteMessage.type}`}>{inviteMessage.text}</p>
+            )}
+
+            <form className="admin-create-form admin-invite-form" onSubmit={handleSendInvitations}>
+              <div className="form-group admin-invite-field">
+                <div className="admin-invite-field-head">
+                  <label htmlFor="inviteEmails">Invitation emails</label>
+                  <span>{inviteEmails.split(/[,\n;]+/).map((email) => email.trim()).filter(Boolean).length} entered</span>
+                </div>
+                <textarea
+                  id="inviteEmails"
+                  value={inviteEmails}
+                  onChange={handleInviteEmailsChange}
+                  placeholder={'student@miit.edu.mm\nname@miit.edu.mm'}
+                  rows={6}
+                  disabled={inviting}
+                  required
+                />
+                <small>Separate addresses with commas, semicolons, or new lines. Use @miit.edu.mm addresses only.</small>
+              </div>
+
+              <button type="submit" className="form-submit" disabled={inviting}>
+                {inviting ? 'Sending invitations...' : 'Send invitations'}
+              </button>
+            </form>
+
+            {inviteResults && (
+              <div className="admin-invite-results">
+                <div className="admin-invite-summary">
+                  <strong>Invited:</strong> {inviteResults.invited.length}
+                  <br />
+                  <strong>Failed:</strong> {inviteResults.failed.length}
+                </div>
+
+                {inviteResults.failed.length > 0 && (
+                  <div className="admin-invite-failed">
+                    <h4>Failed invitations</h4>
+                    <ul>
+                      {inviteResults.failed.map((failure) => (
+                        <li key={failure.email}>
+                          <strong>{failure.email}</strong>: {failure.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )
       case 'reports':
         return (
           <section className="admin-page-accounts">

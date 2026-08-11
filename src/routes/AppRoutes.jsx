@@ -41,7 +41,7 @@ export default function AppRoutes() {
       <Route
         path="/page/:slug"
         element={(
-          <ProtectedRoute>
+          <ProtectedRoute roles={['page', 'admin']}>
             <PageDashboard />
           </ProtectedRoute>
         )}

@@ -4,15 +4,20 @@ import { randomInt, randomUUID } from 'node:crypto'
 
 import { driver } from '../config/neo4j.js'
 import { env } from '../config/env.js'
+import { isMongoUnavailableError } from '../config/mongodb.js'
 import { normalizeEmail, isPageAccountEmail, isValidRegistrationEmail } from '../utils/accountAccess.js'
-import { sendVerificationEmail } from '../utils/emailService.js'
+import { sendVerificationEmail, sendEmail } from '../utils/emailService.js'
 import { createPageRecord, getPageRecordByOwner as getPageRecordByOwnerFromPersistence } from '../utils/pagePersistence.js'
 import { persistUserToBothDatabases, getUserFromMongo, writeUserToMongo } from '../utils/userPersistence.js'
 import { buildPageAccountPayload } from '../utils/authAccountHelpers.js'
+import { pendingRegistrationStore } from '../utils/pendingRegistrations.js'
 
-const pendingRegistrations = new Map()
 const verificationTtlMs = 15 * 60 * 1000
 const verificationResendCooldownMs = 3 * 60 * 1000
+
+function getPendingRegistrations() {
+  return pendingRegistrationStore
+}
 
 function getUserProperties(node) {
   return node?.properties ?? node ?? {}
@@ -52,6 +57,155 @@ function sendVerificationEmailInBackground(email, code, pendingRegistration) {
     })
 }
 
+function buildInvitationLink(email) {
+  const cleanOrigin = env.clientOrigin.replace(/\/+$/g, '')
+  const encodedEmail = encodeURIComponent(email)
+  return `${cleanOrigin}/register?email=${encodedEmail}`
+}
+
+async function sendInvitationEmail(toEmail) {
+  const invitationLink = buildInvitationLink(toEmail)
+  const html = `
+    <div style="margin:0; padding:0; background:#eef3fb;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; background:#eef3fb;">
+        <tr>
+          <td align="center" style="padding:36px 16px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; max-width:640px; border-collapse:collapse; overflow:hidden; border-radius:24px; background:#ffffff; box-shadow:0 22px 60px rgba(12, 35, 80, 0.14);">
+              <tr>
+                <td style="padding:0; background:#001e62;">
+                  <div style="padding:30px 34px 28px; background:linear-gradient(135deg,#001e62 0%,#123781 62%,#f4b400 180%);">
+                    <div style="font-family:Arial, sans-serif; color:#ffffff; font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;">MiitVerse Invitation</div>
+                    <h1 style="margin:18px 0 0; font-family:Arial, sans-serif; color:#ffffff; font-size:32px; line-height:1.18; font-weight:800;">You are invited to join MiitVerse</h1>
+                    <p style="margin:12px 0 0; font-family:Arial, sans-serif; color:rgba(255,255,255,.82); font-size:16px; line-height:1.65;">The official MIIT social hub is ready for you. Create your account and connect with your campus community.</p>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:34px; font-family:Arial, sans-serif; color:#1f2937;">
+                  <p style="margin:0; font-size:16px; line-height:1.7; color:#475569;">An administrator invited <strong style="color:#0f172a;">${toEmail}</strong> to MiitVerse. Use the secure button below to open the registration page with your email already filled in.</p>
+                  <div style="margin:30px 0 26px; text-align:center;">
+                    <a href="${invitationLink}" style="display:inline-block; padding:15px 30px; border-radius:999px; background:#0b3b9a; color:#ffffff; font-family:Arial, sans-serif; font-size:16px; font-weight:800; text-decoration:none; box-shadow:0 12px 24px rgba(11,59,154,.25);">Accept Invitation</a>
+                  </div>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; border:1px solid #dbe5f2; border-radius:16px; background:#f8fbff;">
+                    <tr>
+                      <td style="padding:18px;">
+                        <p style="margin:0 0 8px; font-size:13px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.08em;">Registration link</p>
+                        <p style="margin:0; font-size:14px; line-height:1.55; color:#174287; word-break:break-word;">${invitationLink}</p>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:24px 0 0; font-size:13px; line-height:1.6; color:#64748b;">If you were not expecting this invitation, you can safely ignore this email.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:18px 34px 28px; font-family:Arial, sans-serif; color:#94a3b8; font-size:12px; line-height:1.6; background:#ffffff; border-top:1px solid #edf2f7;">
+                  Sent by MiitVerse Authentication
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `
+
+  const text = `You are invited to join MiitVerse.\n\nAccept your invitation and complete registration here:\n${invitationLink}\n\nIf you did not expect this invitation, please ignore this message.`
+
+  return sendEmail(toEmail, 'You are invited to join MiitVerse', html, text)
+}
+
+async function lookupUserInMongoSafely(identifier) {
+  const normalizedIdentifier = typeof identifier === 'string' ? identifier.trim() : ''
+  if (!normalizedIdentifier) {
+    return null
+  }
+
+  try {
+    return await getUserFromMongo(normalizedIdentifier)
+  } catch (error) {
+    if (isMongoUnavailableError(error)) {
+      console.warn(`MongoDB lookup unavailable for ${normalizedIdentifier}; continuing in degraded mode`, error.message)
+      return null
+    }
+
+    throw error
+  }
+}
+
+async function doesUserAlreadyExist(email) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return false
+
+  const existingMongoUser = await lookupUserInMongoSafely(normalizedEmail)
+  if (existingMongoUser) {
+    return true
+  }
+
+  const session = driver.session()
+  try {
+    const existing = await session.executeRead((tx) =>
+      tx.run(
+        `
+          MATCH (user:User)
+          WHERE user.email = $email
+          RETURN user
+          LIMIT 1
+        `,
+        { email: normalizedEmail }
+      )
+    )
+    return existing.records.length > 0
+  } finally {
+    await session.close()
+  }
+}
+
+export async function sendInvitations(req, res) {
+  const { emails } = req.body || {}
+  const requestEmails = Array.isArray(emails) ? emails : []
+
+  if (requestEmails.length === 0) {
+    return res.status(400).json({ message: 'Provide one or more email addresses to invite.' })
+  }
+
+  const allEmails = requestEmails
+    .map((email) => normalizeEmail(String(email || '')))
+    .filter(Boolean)
+
+  if (allEmails.length === 0) {
+    return res.status(400).json({ message: 'Provide valid email addresses.' })
+  }
+
+  const uniqueEmails = [...new Set(allEmails)]
+  const invited = []
+  const failed = []
+
+  for (const email of uniqueEmails) {
+    if (!isValidRegistrationEmail(email)) {
+      failed.push({ email, reason: 'Invalid MIIT email address' })
+      continue
+    }
+
+    if (await doesUserAlreadyExist(email)) {
+      failed.push({ email, reason: 'User already exists' })
+      continue
+    }
+
+    try {
+      await sendInvitationEmail(email)
+      invited.push(email)
+    } catch (error) {
+      failed.push({ email, reason: error.message || 'Failed to send invitation' })
+    }
+  }
+
+  return res.status(200).json({
+    message: 'Invitation email dispatch completed.',
+    invited,
+    failed,
+  })
+}
+
 export async function registerUser(req, res) {
   const { username, email, password } = req.body || {}
   const trimmedUsername = username?.trim()
@@ -69,8 +223,8 @@ export async function registerUser(req, res) {
     })
   }
 
-  const existingMongoEmail = await getUserFromMongo(normalizedEmail)
-  const existingMongoUsername = existingMongoEmail ? existingMongoEmail : await getUserFromMongo(trimmedUsername)
+  const existingMongoEmail = await lookupUserInMongoSafely(normalizedEmail)
+  const existingMongoUsername = existingMongoEmail ? existingMongoEmail : await lookupUserInMongoSafely(trimmedUsername)
 
   if (existingMongoEmail || existingMongoUsername) {
     return res.status(409).json({ message: 'User already exists' })
@@ -97,6 +251,7 @@ export async function registerUser(req, res) {
 
     // Check whether the username is already pending for a different email.
     // Allow updating/resending for the same email (avoid blocking existing pending entries).
+    const pendingRegistrations = getPendingRegistrations()
     const pendingUsernameExists = Array.from(pendingRegistrations.values()).some(
       (registration) => registration.username === trimmedUsername && registration.email !== normalizedEmail
     )
@@ -188,6 +343,7 @@ export async function resendVerificationCode(req, res) {
     return res.status(400).json({ message: 'email is required' })
   }
 
+  const pendingRegistrations = getPendingRegistrations()
   const pendingRegistration = pendingRegistrations.get(normalizedEmail)
 
   if (!pendingRegistration) {
@@ -212,6 +368,7 @@ export async function resendVerificationCode(req, res) {
   pendingRegistration.verificationCode = verificationCode
   pendingRegistration.verificationExpires = Date.now() + verificationTtlMs
   pendingRegistration.lastSentAt = Date.now()
+  pendingRegistrations.set(normalizedEmail, pendingRegistration)
 
   sendVerificationEmailInBackground(normalizedEmail, verificationCode, pendingRegistration)
   console.log(`Background resend started for ${normalizedEmail}`)
@@ -325,29 +482,34 @@ export async function createPageAccount(req, res) {
   }
 }
 
+export function normalizeVerificationCode(code) {
+  return String(code ?? '').trim().replace(/\D/g, '')
+}
+
 export async function verifyUser(req, res) {
   const { email, code } = req.body || {}
   const normalizedEmail = email?.trim().toLowerCase()
-  const trimmedCode = code?.trim()
+  const normalizedCode = normalizeVerificationCode(code)
 
-  if (!normalizedEmail || !trimmedCode) {
+  if (!normalizedEmail || !normalizedCode) {
     return res.status(400).json({ message: 'email and code are required' })
   }
 
-  if (!/^\d{8}$/.test(trimmedCode)) {
+  if (!/^\d{8}$/.test(normalizedCode)) {
     return res.status(400).json({ message: 'Verification code must be 8 digits' })
   }
 
   const session = driver.session()
 
   try {
+    const pendingRegistrations = getPendingRegistrations()
     const pendingRegistration = pendingRegistrations.get(normalizedEmail)
 
     if (!pendingRegistration) {
       return res.status(404).json({ message: 'No verification pending' })
     }
 
-    if (pendingRegistration.verificationCode !== trimmedCode) {
+    if (String(pendingRegistration.verificationCode).trim() !== normalizedCode) {
       return res.status(400).json({ message: 'Invalid verification code' })
     }
 
@@ -356,30 +518,35 @@ export async function verifyUser(req, res) {
       return res.status(400).json({ message: 'Verification code expired' })
     }
 
-    const existingMongoEmail = await getUserFromMongo(normalizedEmail)
-    const existingMongoUsername = existingMongoEmail ? existingMongoEmail : await getUserFromMongo(pendingRegistration.username)
+    const existingMongoEmail = await lookupUserInMongoSafely(normalizedEmail)
+    const existingMongoUsername = existingMongoEmail ? existingMongoEmail : await lookupUserInMongoSafely(pendingRegistration.username)
 
     if (existingMongoEmail || existingMongoUsername) {
       pendingRegistrations.delete(normalizedEmail)
       return res.status(409).json({ message: 'User already exists' })
     }
 
-    const existingNeo4j = await session.executeRead((tx) =>
-      tx.run(
-        `
-          MATCH (user:User)
-          WHERE user.email = $email OR user.username = $username
-          RETURN user
-          LIMIT 1
-        `,
-        {
-          email: normalizedEmail,
-          username: pendingRegistration.username,
-        }
+    let existingNeo4j = null
+    try {
+      existingNeo4j = await session.executeRead((tx) =>
+        tx.run(
+          `
+            MATCH (user:User)
+            WHERE user.email = $email OR user.username = $username
+            RETURN user
+            LIMIT 1
+          `,
+          {
+            email: normalizedEmail,
+            username: pendingRegistration.username,
+          }
+        )
       )
-    )
+    } catch (error) {
+      console.warn('Neo4j duplicate check failed during verification; continuing with registration.', error.message)
+    }
 
-    if (existingNeo4j.records.length > 0) {
+    if (existingNeo4j?.records?.length > 0) {
       pendingRegistrations.delete(normalizedEmail)
       return res.status(409).json({ message: 'User already exists' })
     }
@@ -395,14 +562,13 @@ export async function verifyUser(req, res) {
       createdAt: pendingRegistration.createdAt,
     }
 
-    const mongoResult = await writeUserToMongo(userData)
     await persistUserToBothDatabases(userData)
 
     pendingRegistrations.delete(normalizedEmail)
 
     return res.status(201).json({
       message: 'Email verified. Account created.',
-      user: serializeUser({ properties: mongoResult }),
+      user: serializeUser({ properties: userData }),
     })
   } catch (e) {
     console.error(e)
