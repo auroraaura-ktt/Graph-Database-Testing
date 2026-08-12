@@ -10,11 +10,13 @@ export function isMongoUnavailableError(error) {
   const code = error?.code || error?.codeName || ''
   const combined = `${code} ${message}`.toLowerCase()
 
-  return /whitelist|server selection timed out|topology|econnrefused|etimedout|timeout|timed out|no servers|connection failed|not reachable|unavailable|not whitelisted|ip address/i.test(combined)
+  return /whitelist|server selection timed out|topology|econnrefused|etimedout|timeout|timed out|no servers|connection failed|not reachable|unavailable|not whitelisted|ip address|notwritableprimary|not primary|primary stepped down/i.test(combined)
 }
 
 function resolveMongoUri() {
-  const uri = normalize(process.env.MONGODB_URI || env.mongodbUri)
+  // env.mongodbUri normalizes Atlas connection options, including removal of
+  // directConnection=true so the driver can follow primary elections.
+  const uri = normalize(env.mongodbUri || process.env.MONGODB_URI)
 
   if (uri) {
     return uri

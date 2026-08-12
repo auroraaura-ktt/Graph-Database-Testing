@@ -1,10 +1,12 @@
 import { normalizeEmail } from './accountAccess.js';
 
 export function buildPageAccountPayload(input = {}) {
-  const username = String(input.username || input.pageName || '').trim();
   const email = normalizeEmail(input.email);
+  const requestedUsername = String(input.username || '').trim();
+  const emailLocalPart = email.split('@')[0] || '';
+  const username = requestedUsername || emailLocalPart;
   const password = String(input.password || '').trim();
-  const pageName = String(input.pageName || username || '').trim();
+  const pageName = String(input.pageName || requestedUsername || emailLocalPart).trim();
 
   return {
     username,

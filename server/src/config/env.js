@@ -32,6 +32,15 @@ function buildMongoUri() {
       if (parsed.password) {
         parsed.password = encodeURIComponent(decodeURIComponent(parsed.password))
       }
+
+      // Atlas replica sets must not be pinned to one shard member. A member can
+      // step down at any time, producing NotWritablePrimary errors for logins
+      // and page creation. Let the MongoDB driver discover the current primary.
+      for (const key of [...parsed.searchParams.keys()]) {
+        if (key.toLowerCase() === 'directconnection') {
+          parsed.searchParams.delete(key)
+        }
+      }
       return parsed.toString()
     } catch {
       return configuredUri

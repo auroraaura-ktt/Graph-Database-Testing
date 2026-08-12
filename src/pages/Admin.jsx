@@ -71,7 +71,7 @@ export default function Admin() {
     }
   }, [token])
 
-  const loadPages = useCallback(async () => {
+  const loadPages = useCallback(async ({ reportError = true } = {}) => {
     setLoadingPages(true)
 
     try {
@@ -82,8 +82,9 @@ export default function Admin() {
       })
       setPages(data.pages || [])
     } catch (err) {
-      setPages([])
-      setPageAccountMessage({ type: 'error', text: err.message || 'Failed to load pages' })
+      if (reportError) {
+        setPageAccountMessage({ type: 'error', text: err.message || 'Failed to load pages' })
+      }
     } finally {
       setLoadingPages(false)
     }
@@ -247,9 +248,17 @@ export default function Admin() {
         type: 'success',
         text: data.message || `Page account ${pageFormData.pageName || pageFormData.email} created successfully.`,
       })
+      if (data.page) {
+        setPages((currentPages) => [
+          data.page,
+          ...currentPages.filter(
+            (page) => page.id !== data.page.id && String(page.email).toLowerCase() !== String(data.page.email).toLowerCase()
+          ),
+        ])
+      }
       setPageFormData({ pageName: '', email: '', password: '' })
       await loadUsers()
-      await loadPages()
+      await loadPages({ reportError: false })
     } catch (err) {
       setPageAccountMessage({
         type: 'error',

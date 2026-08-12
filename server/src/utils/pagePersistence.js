@@ -27,6 +27,16 @@ export function normalizePageSlug(value = '') {
     .replace(/^-+|-+$/g, '')
 }
 
+function isRetryableMongoWriteError(error) {
+  return error?.hasErrorLabel?.('RetryableWriteError') ||
+    error?.errorLabelSet?.has?.('RetryableWriteError') ||
+    ['NotWritablePrimary', 'PrimarySteppedDown', 'InterruptedDueToReplStateChange'].includes(error?.codeName)
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function createPageRecord(pageData = {}) {
   const pageName = String(pageData.pageName || '').trim()
   const email = String(pageData.email || '').trim().toLowerCase()
@@ -37,7 +47,8 @@ export async function createPageRecord(pageData = {}) {
   }
 
   let slug = baseSlug
-  let attempt = 0
+  let slugAttempt = 0
+  let writeAttempt = 0
 
   while (true) {
     const document = {
@@ -62,12 +73,21 @@ export async function createPageRecord(pageData = {}) {
     } catch (error) {
       const isDuplicateSlug = error?.code === 11000 && (error.keyPattern?.slug || String(error.message).includes('slug'))
 
-      if (!isDuplicateSlug || attempt >= 4) {
-        throw error
+      if (isDuplicateSlug && slugAttempt < 4) {
+        slugAttempt += 1
+        slug = `${baseSlug}-${slugAttempt}`
+        continue
       }
 
-      attempt += 1
-      slug = `${baseSlug}-${attempt}`
+      if (isRetryableMongoWriteError(error) && writeAttempt < 3) {
+        writeAttempt += 1
+        await wait(writeAttempt * 200)
+        continue
+      }
+
+      if (!isDuplicateSlug || slugAttempt >= 4) {
+        throw error
+      }
     }
   }
 }

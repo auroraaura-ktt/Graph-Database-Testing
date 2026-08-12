@@ -8,7 +8,7 @@ import { isMongoUnavailableError } from '../config/mongodb.js'
 import { normalizeEmail, isPageAccountEmail, isValidRegistrationEmail } from '../utils/accountAccess.js'
 import { sendVerificationEmail, sendEmail } from '../utils/emailService.js'
 import { createPageRecord, getPageRecordByOwner as getPageRecordByOwnerFromPersistence } from '../utils/pagePersistence.js'
-import { persistUserToBothDatabases, getUserFromMongo, writeUserToMongo } from '../utils/userPersistence.js'
+import { persistUserToBothDatabases, getUserFromMongo, isNeo4jUnavailableError } from '../utils/userPersistence.js'
 import { buildPageAccountPayload } from '../utils/authAccountHelpers.js'
 import { pendingRegistrationStore } from '../utils/pendingRegistrations.js'
 
@@ -24,7 +24,9 @@ function getUserProperties(node) {
 }
 
 function serializeUser(record) {
-  const user = getUserProperties(record?.get('user'))
+  const user = typeof record?.get === 'function'
+    ? getUserProperties(record.get('user'))
+    : getUserProperties(record)
 
   if (!user) {
     return null
@@ -380,36 +382,62 @@ export async function resendVerificationCode(req, res) {
   })
 }
 
-export async function doesPageAccountAlreadyExist(accountPayload, deps = {}) {
+export async function findPageAccountConflict(accountPayload, deps = {}) {
   const { getUser = getUserFromMongo, driverInstance = driver } = deps
 
-  const existingEmailUser = await getUser(accountPayload.email)
-  const existingUsernameUser = await getUser(accountPayload.username)
+  let existingEmailUser = null
 
-  if (existingEmailUser || (existingUsernameUser && existingUsernameUser.role === 'page')) {
-    return true
+  try {
+    existingEmailUser = await getUser(accountPayload.email)
+  } catch (error) {
+    if (!isMongoUnavailableError(error)) {
+      throw error
+    }
+
+    console.warn('MongoDB page-account duplicate check unavailable; continuing with Neo4j.', error.message)
+  }
+
+  if (existingEmailUser) {
+    return { field: 'email', user: existingEmailUser }
   }
 
   const session = driverInstance.session()
 
   try {
-    const existing = await session.executeRead((tx) =>
-      tx.run(
-        `
-          MATCH (user:User)
-          WHERE user.email = $email
-            OR (user.role = 'page' AND toLower(user.username) = toLower($username))
-          RETURN user
-          LIMIT 1
-        `,
-        { email: accountPayload.email, username: accountPayload.username }
+    try {
+      const existing = await session.executeRead((tx) =>
+        tx.run(
+          `
+            MATCH (user:User)
+            WHERE user.email = $email
+            RETURN user
+            LIMIT 1
+          `,
+          { email: accountPayload.email }
+        )
       )
-    )
 
-    return existing.records.length > 0
+      if (existing.records.length === 0) {
+        return null
+      }
+
+      const user = getUserProperties(existing.records[0].get('user'))
+      return { field: 'email', user }
+    } catch (error) {
+      if (!isNeo4jUnavailableError(error)) {
+        throw error
+      }
+
+      console.warn('Neo4j page-account duplicate check unavailable; continuing with MongoDB.', error.message)
+      return null
+    }
   } finally {
     await session.close()
   }
+}
+
+export async function doesPageAccountAlreadyExist(accountPayload, deps = {}) {
+  return Boolean(await findPageAccountConflict(accountPayload, deps))
 }
 
 export async function createPageAccount(req, res) {
@@ -424,8 +452,12 @@ export async function createPageAccount(req, res) {
     return res.status(400).json({ message: 'Page accounts must use an @miitverse.com email address.' })
   }
 
-  if (await doesPageAccountAlreadyExist(accountPayload)) {
-    return res.status(409).json({ message: 'Page account already exists' })
+  const conflict = await findPageAccountConflict(accountPayload)
+  if (conflict) {
+    return res.status(409).json({
+      message: 'An account already uses this email address. Choose a different @miitverse.com email.',
+      conflict: { field: 'email' },
+    })
   }
 
   const session = driver.session()
@@ -444,16 +476,13 @@ export async function createPageAccount(req, res) {
       createdAt,
     }
 
-    const mongoResult = await writeUserToMongo(mongoUserData)
-
     await persistUserToBothDatabases(mongoUserData)
 
-    const result = { records: [{ get: () => ({ properties: mongoResult }) }] }
-
+    let pageRecord = null
     let pageRecordError = null
 
     try {
-      await createPageRecord({
+      pageRecord = await createPageRecord({
         id: userId,
         pageName: accountPayload.pageName || accountPayload.username,
         slug: accountPayload.slug || accountPayload.username,
@@ -472,7 +501,8 @@ export async function createPageAccount(req, res) {
 
     return res.status(201).json({
       message: responseMessage,
-      user: serializeUser(result.records[0]),
+      user: serializeUser({ properties: mongoUserData }),
+      page: pageRecord,
     })
   } catch (error) {
     console.error('Page account creation error:', error)
@@ -633,7 +663,7 @@ export async function loginUser(req, res) {
   let session = null
 
   try {
-    user = await getUserFromMongo(identifier)
+    user = await lookupUserInMongoSafely(identifier)
 
     if (!user) {
       session = driver.session()

@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import { buildPageAccountPayload } from '../src/utils/authAccountHelpers.js';
 import { isPageAccountEmail, isValidRegistrationEmail } from '../src/utils/accountAccess.js';
 
-test('buildPageAccountPayload falls back to the page name and creates a login-ready page account', () => {
+test('buildPageAccountPayload derives its internal username from the email and preserves the page name', () => {
   const payload = buildPageAccountPayload({
     pageName: 'Campus News',
     email: 'news@miit.edu.mm',
     password: 'Admin123456',
   });
 
-  assert.equal(payload.username, 'Campus News');
+  assert.equal(payload.username, 'news');
   assert.equal(payload.email, 'news@miit.edu.mm');
   assert.equal(payload.role, 'page');
   assert.equal(payload.verified, true);
