@@ -2,7 +2,7 @@ import { useState } from "react";
 import VerifiedBadge from "./VerifiedBadge";
 
 export default function ReactionModal({ isOpen, onClose, post, reactions, likers = [] }) {
-  const [activeTab, setActiveTab] = useState("likes"); // likes, comments, shares
+  const [activeTab, setActiveTab] = useState("likes");
 
   if (!isOpen) return null;
 
@@ -31,11 +31,6 @@ export default function ReactionModal({ isOpen, onClose, post, reactions, likers
       comment: "Can you provide more details about this?",
       time: "30m ago",
     },
-  ];
-
-  const sharers = [
-    { id: 1, name: "David Chen", avatar: "DC", verified: true },
-    { id: 2, name: "Rachel Green", avatar: "RG", verified: false },
   ];
 
   return (
@@ -137,22 +132,6 @@ export default function ReactionModal({ isOpen, onClose, post, reactions, likers
             }}
           >
             💬 Comments ({reactions.comments})
-          </button>
-          <button
-            onClick={() => setActiveTab("shares")}
-            style={{
-              flex: 1,
-              padding: "12px",
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              borderBottom: activeTab === "shares" ? "3px solid #001e62" : "none",
-              fontWeight: activeTab === "shares" ? "600" : "500",
-              color: activeTab === "shares" ? "#001e62" : "#666",
-              transition: "all 0.2s ease",
-            }}
-          >
-            📤 Reposts ({reactions.shares})
           </button>
         </div>
 
@@ -311,66 +290,6 @@ export default function ReactionModal({ isOpen, onClose, post, reactions, likers
             </div>
           )}
 
-          {activeTab === "shares" && (
-            <div style={{ padding: "16px" }}>
-              {sharers.slice(0, reactions.shares).map((user) => (
-                <div
-                  key={user.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 0",
-                    borderBottom: "1px solid #f0f0f0",
-                    cursor: "pointer",
-                    transition: "background 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8f8f8")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                >
-                  <div
-                    style={{
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "50%",
-                      background: "linear-gradient(45deg,#f58529,#feda77,#dd2a7b,#8134af,#515bd4)",
-                      padding: "2px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        borderRadius: "50%",
-                        background: "#001e62",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "white",
-                        fontWeight: "bold",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {user.avatar}
-                    </div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ fontWeight: "600" }}>{user.name}</span>
-                      {user.verified && (
-                        <VerifiedBadge size="small" />
-                      )}
-                    </div>
-                    <span style={{ fontSize: "12px", color: "#999" }}>Reposted to their network</span>
-                  </div>
-                  <span style={{ fontSize: "18px" }}>📤</span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>

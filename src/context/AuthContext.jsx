@@ -1,129 +1,185 @@
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-import { apiRequest } from '../lib/api'
-import { AuthContext } from './authContext.js'
+import { apiRequest } from "../lib/api";
+
+export const AuthContext = createContext(null);
 
 function readStoredAuth() {
+  if (typeof window === "undefined") {
+    return { token: null, user: null };
+  }
+
   try {
-    const raw = window.localStorage.getItem('miitverse-auth')
-    return raw ? JSON.parse(raw) : null
+    const storedValue = window.localStorage.getItem("miitverse-auth");
+    if (!storedValue) {
+      return { token: null, user: null };
+    }
+
+    const parsed = JSON.parse(storedValue);
+    return {
+      token: parsed?.token ?? null,
+      user: parsed?.user ?? null,
+    };
   } catch {
-    return null
+    return { token: null, user: null };
   }
 }
 
 export function AuthProvider({ children }) {
-  const [auth, setAuth] = useState(() => readStoredAuth())
-  const [ready, setReady] = useState(() => !readStoredAuth())
+  const [auth, setAuth] = useState(readStoredAuth);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!auth) {
-      window.localStorage.removeItem('miitverse-auth')
-      return
+    if (typeof window !== "undefined") {
+      if (auth?.token || auth?.user) {
+        window.localStorage.setItem("miitverse-auth", JSON.stringify(auth));
+      } else {
+        window.localStorage.removeItem("miitverse-auth");
+      }
+    }
+  }, [auth]);
+
+  const loadCurrentUser = async () => {
+    if (!auth?.token) {
+      setReady(true);
+      return;
     }
 
-    window.localStorage.setItem('miitverse-auth', JSON.stringify(auth))
-  }, [auth])
+    try {
+      const data = await apiRequest("/users/me", {
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+
+      setAuth((currentAuth) => ({
+        token: currentAuth?.token ?? auth?.token,
+        user: data.user || currentAuth?.user || null,
+      }));
+    } catch (error) {
+      console.warn("Failed to load current auth user:", error);
+      setAuth({ token: null, user: null });
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("miitverse-auth");
+      }
+    } finally {
+      setReady(true);
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false
+    loadCurrentUser();
+  }, [auth?.token]);
 
-    async function syncCurrentUser() {
-      if (!auth?.token) {
-        setReady(true)
-        return
-      }
+  const login = async (payload) => {
+    const data = await apiRequest("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
 
-      try {
-        const data = await apiRequest('/users/me', {
-          headers: {
-            Authorization: `Bearer ${auth.token}`,
-          },
-        })
+    const nextAuth = {
+      token: data.token,
+      user: data.user,
+    };
 
-        if (!cancelled) {
-          setAuth((currentAuth) => ({
-            token: currentAuth?.token ?? auth.token,
-            user: data.user,
-          }))
-        }
-      } catch {
-        if (!cancelled) {
-          setAuth(null)
-        }
-      } finally {
-        if (!cancelled) {
-          setReady(true)
-        }
-      }
+    setAuth(nextAuth);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("miitverse-auth", JSON.stringify(nextAuth));
     }
 
-    syncCurrentUser()
+    return data;
+  };
 
-    return () => {
-      cancelled = true
+  const register = async (payload) => {
+    const data = await apiRequest("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    return data;
+  };
+
+  const logout = () => {
+    setAuth({ token: null, user: null });
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("miitverse-auth");
     }
-  }, [auth?.token])
+  };
 
-  const value = useMemo(() => {
-    return {
+  const updateProfile = async (payload) => {
+    const data = await apiRequest("/users/me", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${auth?.token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    setAuth((currentAuth) => ({
+      token: currentAuth?.token ?? auth?.token,
+      user: data.user,
+    }));
+
+    return data.user;
+  };
+
+  const updateAvatar = async (file) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    const data = await apiRequest("/users/me/avatar", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${auth?.token}`,
+      },
+      body: formData,
+    });
+
+    setAuth((currentAuth) => ({
+      token: currentAuth?.token ?? auth?.token,
+      user: data.user,
+    }));
+
+    return data.user;
+  };
+
+  const changePassword = async (payload) => {
+    const data = await apiRequest("/users/me/password", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${auth?.token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    return data;
+  };
+
+  const value = useMemo(
+    () => ({
+      auth,
       user: auth?.user ?? null,
       token: auth?.token ?? null,
       isAuthenticated: Boolean(auth?.token),
       ready,
-      login: async (credentials) => {
-        const data = await apiRequest('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify(credentials),
-        })
+      loading: !ready,
+      setUser: (user) => setAuth((currentAuth) => ({ ...currentAuth, user })),
+      setAuth,
+      loadCurrentUser,
+      login,
+      register,
+      logout,
+      updateProfile,
+      updateAvatar,
+      changePassword,
+    }),
+    [auth, ready]
+  );
 
-        setAuth({ token: data.token, user: data.user })
-        return data
-      },
-      register: async (payload) => {
-        const data = await apiRequest('/auth/register', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        })
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-        return data
-      },
-      updateProfile: async (payload) => {
-        const data = await apiRequest('/users/me', {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${auth?.token}`,
-          },
-          body: JSON.stringify(payload),
-        })
-
-        setAuth((currentAuth) => ({
-          token: currentAuth?.token ?? auth?.token,
-          user: data.user,
-        }))
-
-        return data.user
-      },
-      changePassword: async (payload) => {
-        const data = await apiRequest('/users/me/password', {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${auth?.token}`,
-          },
-          body: JSON.stringify(payload),
-        })
-
-        return data
-      },
-      logout: () => {
-        if (typeof window !== 'undefined') {
-          window.localStorage.removeItem('miitverse-auth')
-        }
-        setAuth(null)
-        setReady(true)
-      },
-    }
-  }, [auth, ready])
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+export function useAuth() {
+  return useContext(AuthContext);
 }

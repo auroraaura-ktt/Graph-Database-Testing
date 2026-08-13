@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { FaArrowLeft, FaBullhorn, FaChartLine, FaCheckCircle, FaImage, FaPen, FaUsers } from 'react-icons/fa'
+import { FaArrowLeft, FaBullhorn, FaChartLine, FaImage, FaPen } from 'react-icons/fa'
 
 import { useAuth } from '../context/useAuth'
 import { apiRequest } from '../lib/api'
@@ -20,6 +20,7 @@ export default function PageDashboard() {
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [imageError, setImageError] = useState('')
+  const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
     let active = true
@@ -126,6 +127,56 @@ export default function PageDashboard() {
     setImageFile(file)
   }
 
+  const renderActiveTab = () => {
+    if (activeTab === 'create-post') {
+      return (
+        <section className="page-composer-card" id="create-post">
+          <div className="page-card-heading"><div><p className="page-kicker">CREATE</p><h2>Publish an update</h2></div><span className="page-avatar small">{pageInitial}</span></div>
+          <form onSubmit={handlePostSubmit}>
+            <label htmlFor="pagePost">What would you like to share?</label>
+            <textarea id="pagePost" rows="6" value={draft} onChange={(event) => { setDraft(event.target.value); if (message) setMessage('') }} placeholder={`Write an update from ${pageTitle}…`} />
+            <div className="page-composer-actions">
+              <label className="page-image-picker" htmlFor="pageImage"><FaImage /> Add image</label>
+              <input id="pageImage" type="file" accept="image/*" onChange={handleImageChange} />
+              <span>{draft.trim().length} characters</span>
+              <button type="submit" disabled={posting}>{posting ? 'Publishing…' : <><FaBullhorn /> Publish update</>}</button>
+            </div>
+            {imageError && <p className="page-message error">{imageError}</p>}
+            {message && <p className={`page-message ${message === 'Your page update is live.' ? 'success' : 'error'}`}>{message}</p>}
+            {imagePreview && <div className="page-image-preview"><img src={imagePreview} alt="Selected for your post" /><button type="button" onClick={() => { setImageFile(null); setImagePreview(null) }}>Remove image</button></div>}
+          </form>
+        </section>
+      )
+    }
+
+    if (activeTab === 'published-posts') {
+      return (
+        <section className="page-posts-card" id="recent-posts">
+          <div className="page-card-heading"><div><p className="page-kicker">ACTIVITY</p><h2>Recent page posts</h2></div><span className="page-post-count">{posts.length} total</span></div>
+          {posts.length === 0 ? <div className="page-empty-state"><FaBullhorn /><h3>Your page has no posts yet</h3><p>Create the first update to start your page activity.</p><button type="button" className="page-empty-action" onClick={() => setActiveTab('create-post')}>Create an update</button></div> : <div className="page-post-list">{posts.map((post) => <article className="page-post" key={post.id}><span className="page-avatar small">{pageInitial}</span><div><strong>{pageTitle}</strong><time>{new Date(post.createdAt).toLocaleString()}</time><p>{post.content}</p>{post.image && <img src={post.image} alt="Post attachment" />}</div></article>)}</div>}
+        </section>
+      )
+    }
+
+    return (
+      <>
+        <section className="page-hero-card">
+          <div className="page-hero-icon"><FaBullhorn /></div>
+          <div>
+            <p className="page-kicker">YOUR PAGE IS READY</p>
+            <h2>Share something worth seeing.</h2>
+            <p>Publish announcements, news, and moments for your audience from one focused workspace.</p>
+          </div>
+          <button type="button" className="page-primary-action" onClick={() => setActiveTab('create-post')}><FaPen /> Create update</button>
+        </section>
+
+        <section className="page-overview-summary" aria-label="Page statistics">
+          <article className="page-stat-card"><span className="page-stat-icon blue"><FaBullhorn /></span><div><p>Published posts</p><strong>{posts.length}</strong><small>Updates shared</small></div></article>
+        </section>
+      </>
+    )
+  }
+
   if (loading) {
     return <main className="page-dashboard-state">Loading your page dashboard…</main>
   }
@@ -153,9 +204,9 @@ export default function PageDashboard() {
         </div>
 
         <nav className="page-dashboard-nav" aria-label="Page dashboard">
-          <a className="active" href="#overview"><FaChartLine /> Overview</a>
-          <a href="#create-post"><FaPen /> Create post</a>
-          <a href="#recent-posts"><FaBullhorn /> Published posts</a>
+          <button type="button" className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}><FaChartLine /> Overview</button>
+          <button type="button" className={activeTab === 'create-post' ? 'active' : ''} onClick={() => setActiveTab('create-post')}><FaPen /> Create post</button>
+          <button type="button" className={activeTab === 'published-posts' ? 'active' : ''} onClick={() => setActiveTab('published-posts')}><FaBullhorn /> Published posts</button>
         </nav>
 
         <Link className="page-back-link" to="/feed"><FaArrowLeft /> Back to feed</Link>
@@ -171,52 +222,7 @@ export default function PageDashboard() {
           <div className="page-user-chip"><span>{user?.username?.charAt(0)?.toUpperCase() || pageInitial}</span>{user?.username || pageTitle}</div>
         </header>
 
-        <section className="page-hero-card">
-          <div className="page-hero-icon"><FaBullhorn /></div>
-          <div>
-            <p className="page-kicker">YOUR PAGE IS READY</p>
-            <h2>Share something worth seeing.</h2>
-            <p>Publish announcements, news, and moments for your audience from one focused workspace.</p>
-          </div>
-          <a className="page-primary-action" href="#create-post"><FaPen /> Create update</a>
-        </section>
-
-        <section className="page-stat-grid" aria-label="Page statistics">
-          <article className="page-stat-card"><span className="page-stat-icon blue"><FaBullhorn /></span><div><p>Published posts</p><strong>{posts.length}</strong><small>Updates shared</small></div></article>
-          <article className="page-stat-card"><span className="page-stat-icon gold"><FaUsers /></span><div><p>Followers</p><strong>0</strong><small>Audience members</small></div></article>
-          <article className="page-stat-card"><span className="page-stat-icon green"><FaChartLine /></span><div><p>Reach</p><strong>0</strong><small>Engagement score</small></div></article>
-        </section>
-
-        <section className="page-workspace-grid">
-          <section className="page-composer-card" id="create-post">
-            <div className="page-card-heading"><div><p className="page-kicker">CREATE</p><h2>Publish an update</h2></div><span className="page-avatar small">{pageInitial}</span></div>
-            <form onSubmit={handlePostSubmit}>
-              <label htmlFor="pagePost">What would you like to share?</label>
-              <textarea id="pagePost" rows="6" value={draft} onChange={(event) => { setDraft(event.target.value); if (message) setMessage('') }} placeholder={`Write an update from ${pageTitle}…`} />
-              <div className="page-composer-actions">
-                <label className="page-image-picker" htmlFor="pageImage"><FaImage /> Add image</label>
-                <input id="pageImage" type="file" accept="image/*" onChange={handleImageChange} />
-                <span>{draft.trim().length} characters</span>
-                <button type="submit" disabled={posting}>{posting ? 'Publishing…' : <><FaBullhorn /> Publish update</>}</button>
-              </div>
-              {imageError && <p className="page-message error">{imageError}</p>}
-              {message && <p className={`page-message ${message === 'Your page update is live.' ? 'success' : 'error'}`}>{message}</p>}
-              {imagePreview && <div className="page-image-preview"><img src={imagePreview} alt="Selected for your post" /><button type="button" onClick={() => { setImageFile(null); setImagePreview(null) }}>Remove image</button></div>}
-            </form>
-          </section>
-
-          <aside className="page-tips-card">
-            <span className="page-tips-icon"><FaCheckCircle /></span>
-            <p className="page-kicker">QUICK TIP</p>
-            <h2>Keep your page active</h2>
-            <p>Regular, clear updates help your audience know what is happening and when to take part.</p>
-          </aside>
-        </section>
-
-        <section className="page-posts-card" id="recent-posts">
-          <div className="page-card-heading"><div><p className="page-kicker">ACTIVITY</p><h2>Recent page posts</h2></div><span className="page-post-count">{posts.length} total</span></div>
-          {posts.length === 0 ? <div className="page-empty-state"><FaBullhorn /><h3>Your page has no posts yet</h3><p>Create the first update to start your page activity.</p><a href="#create-post">Create an update</a></div> : <div className="page-post-list">{posts.map((post) => <article className="page-post" key={post.id}><span className="page-avatar small">{pageInitial}</span><div><strong>{pageTitle}</strong><time>{new Date(post.createdAt).toLocaleString()}</time><p>{post.content}</p>{post.image && <img src={post.image} alt="Post attachment" />}</div></article>)}</div>}
-        </section>
+        {renderActiveTab()}
       </section>
     </main>
   )

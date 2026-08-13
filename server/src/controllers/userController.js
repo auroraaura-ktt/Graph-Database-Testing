@@ -1,6 +1,19 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { driver } from '../config/neo4j.js'
 import bcrypt from 'bcryptjs'
-import { getUserFromMongo, setUserSuspensionInMongo } from '../utils/userPersistence.js'
+import {
+  getUserFromMongo,
+  persistUserToBothDatabases,
+  setUserSuspensionInMongo,
+} from '../utils/userPersistence.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+const profileUploadDir = resolve(__dirname, '..', '..', 'data', 'uploads')
 
 function getUserProperties(node) {
   return node?.properties ?? node ?? {}
@@ -21,6 +34,7 @@ export async function getCurrentUser(req, res) {
           email: mongoUser.email,
           role: mongoUser.role,
           createdAt: mongoUser.createdAt,
+          avatarUrl: mongoUser.avatarUrl || '',
         },
       })
     }
@@ -57,6 +71,7 @@ export async function getCurrentUser(req, res) {
         email: user.email,
         role: user.role,
         createdAt: user.createdAt,
+        avatarUrl: user.avatarUrl || '',
       },
     })
   } finally {
@@ -117,10 +132,81 @@ export async function updateCurrentUser(req, res) {
         email: user.email,
         role: user.role,
         createdAt: user.createdAt,
+        avatarUrl: user.avatarUrl || '',
       },
     })
   } finally {
     await session.close()
+  }
+}
+
+export async function updateCurrentAvatar(req, res) {
+  if (!req.file) {
+    return res.status(400).json({
+      message: 'No profile photo provided',
+    })
+  }
+
+  const allowedTypes = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+  ])
+
+  if (!allowedTypes.has(req.file.mimetype)) {
+    return res.status(400).json({
+      message: 'Only JPG, PNG, WEBP and GIF images are allowed',
+    })
+  }
+
+  try {
+    mkdirSync(profileUploadDir, { recursive: true })
+
+    const extensionMap = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+    }
+
+    const extension = extensionMap[req.file.mimetype] || 'jpg'
+    const fileName = `avatar-${req.user.id}-${Date.now()}.${extension}`
+    const filePath = resolve(profileUploadDir, fileName)
+
+    writeFileSync(filePath, req.file.buffer)
+
+    const avatarUrl = `/api/social/uploads/${fileName}`
+    const mongoUser = await getUserFromMongo(req.user.id)
+
+    if (!mongoUser) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    const updatedUserData = {
+      ...mongoUser,
+      avatarUrl,
+    }
+
+    await persistUserToBothDatabases(updatedUserData)
+
+    return res.json({
+      message: 'Profile photo updated successfully',
+      user: {
+        id: mongoUser.id,
+        username: mongoUser.username,
+        email: mongoUser.email,
+        role: mongoUser.role,
+        createdAt: mongoUser.createdAt,
+        avatarUrl,
+      },
+    })
+  } catch (error) {
+    console.error('Profile photo upload failed:', error)
+
+    return res.status(500).json({
+      message: 'Failed to update profile photo',
+    })
   }
 }
 

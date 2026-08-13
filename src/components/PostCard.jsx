@@ -89,11 +89,10 @@ export default function PostCard({ post = {} }) {
     }));
   };
 
-  const handleShare = () => {
-    setReactions((prev) => ({
-      ...prev,
-      shares: prev.shares + 1,
-    }));
+  const handleReport = () => {
+    if (typeof window !== "undefined") {
+      window.alert("This post has been reported and will be reviewed by the moderation team.");
+    }
   };
 
   const handleReactionCountClick = () => {
@@ -234,7 +233,7 @@ export default function PostCard({ post = {} }) {
           onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}
         >
           <span>❤️ {reactions.likes} Likes</span>
-          <span>💬 {reactions.comments} Comments · 🔁 {reactions.shares} Reposts</span>
+          <span>💬 {reactions.comments} Comments</span>
         </div>
 
         <div
@@ -261,18 +260,21 @@ export default function PostCard({ post = {} }) {
               cursor: "pointer",
               padding: "8px",
               fontSize: "16px",
-              color: reactions.liked ? "#e74c3c" : undefined,
-              fontWeight: reactions.liked ? "600" : "normal",
+              color: reactions.liked ? "#e74c3c" : "#0B1E4F",
+              fontWeight: reactions.liked ? "600" : "500",
               transition: "all 0.2s ease",
             }}
-            onMouseEnter={(event) => {
-              if (!reactions.liked) event.target.style.color = "#e74c3c";
-            }}
-            onMouseLeave={(event) => {
-              if (!reactions.liked) event.target.style.color = "#0B1E4F";
-            }}
           >
-            <span style={{ fontSize: "18px" }}>❤️</span>
+            <span
+              style={{
+                fontSize: "18px",
+                color: reactions.liked ? "#e74c3c" : "#6b7280",
+                display: "inline-block",
+                transform: reactions.liked ? "scale(1.06)" : "scale(1)",
+              }}
+            >
+              {reactions.liked ? "♥" : "♡"}
+            </span>
             <span>Like</span>
           </button>
 
@@ -290,10 +292,9 @@ export default function PostCard({ post = {} }) {
               cursor: "pointer",
               padding: "8px",
               fontSize: "16px",
+              color: "#0B1E4F",
               transition: "all 0.2s ease",
             }}
-            onMouseEnter={(event) => (event.target.style.color = "#F5B62D")}
-            onMouseLeave={(event) => (event.target.style.color = "#F7F9FC")}
           >
             <span style={{ fontSize: "18px" }}>💬</span>
             <span>Comment</span>
@@ -301,7 +302,7 @@ export default function PostCard({ post = {} }) {
 
           <button
             className="post-action-btn"
-            onClick={handleShare}
+            onClick={handleReport}
             style={{
               flex: 1,
               display: "flex",
@@ -313,36 +314,14 @@ export default function PostCard({ post = {} }) {
               cursor: "pointer",
               padding: "8px",
               fontSize: "16px",
+              color: "#0B1E4F",
               transition: "all 0.2s ease",
             }}
-            onMouseEnter={(event) => (event.target.style.color = "#F5B62D")}
-            onMouseLeave={(event) => (event.target.style.color = "#F7F9FC")}
           >
-            <span style={{ fontSize: "18px" }}>📤</span>
-            <span>Repost</span>
+            <span style={{ fontSize: "18px" }}>🚩</span>
+            <span>Report</span>
           </button>
 
-          <button
-            className="post-action-btn"
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              padding: "8px",
-              fontSize: "16px",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(event) => (event.target.style.color = "#F5B62D")}
-            onMouseLeave={(event) => (event.target.style.color = "#F7F9FC")}
-          >
-            <span style={{ fontSize: "18px" }}>🔖</span>
-            <span>Save</span>
-          </button>
         </div>
 
         <div className="post-engagement" style={{ padding: "12px 16px" }}>

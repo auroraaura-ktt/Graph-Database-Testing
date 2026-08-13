@@ -48,17 +48,6 @@ export default function LeftSidebar({ sidebarOpen, setSidebarOpen }) {
       </ul>
 
       <div className="sidebar-divider" />
-
-      <div className="profile-card">
-        <div className="profile-avatar-large">{initials}</div>
-        <h3>{user?.username || 'MiitVerse User'}</h3>
-        <p>{user?.email || 'Guest member'}</p>
-        {user ? (
-          <Link className="profile-btn" to="/profile">View Profile</Link>
-        ) : (
-          <Link className="profile-btn" to="/login">Sign in</Link>
-        )}
-      </div>
     </aside>
   )
 }

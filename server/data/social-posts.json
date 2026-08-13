@@ -6,7 +6,7 @@
     "content": "Hi Students, I love MIIT",
     "image": null,
     "createdAt": "2026-08-10T15:57:19.760Z",
-    "likes": 2,
+    "likes": 3,
     "likedBy": [
       {
         "userId": "40f6a193-5632-4db5-993b-a069552387a4",
@@ -15,6 +15,10 @@
       {
         "userId": "demo-user",
         "username": "Demo"
+      },
+      {
+        "userId": "b44feffd-b583-42bf-9cee-a111f77b5090",
+        "username": "Minn Khant"
       }
     ],
     "comments": [],
@@ -201,10 +205,16 @@
     "content": "j",
     "image": null,
     "createdAt": "2026-08-08T06:34:52.101Z",
-    "likes": 0,
+    "likes": 1,
     "comments": [],
     "reposts": 0,
-    "visibility": "public"
+    "visibility": "public",
+    "likedBy": [
+      {
+        "userId": "b44feffd-b583-42bf-9cee-a111f77b5090",
+        "username": "Minn Khant"
+      }
+    ]
   },
   {
     "id": 1786170670779,
@@ -228,7 +238,8 @@
     "likes": 0,
     "comments": [],
     "reposts": 0,
-    "visibility": "public"
+    "visibility": "public",
+    "likedBy": []
   },
   {
     "id": 1786170472002,
@@ -237,10 +248,16 @@
     "content": "hi",
     "image": null,
     "createdAt": "2026-08-08T06:27:52.002Z",
-    "likes": 0,
+    "likes": 1,
     "comments": [],
     "reposts": 0,
-    "visibility": "public"
+    "visibility": "public",
+    "likedBy": [
+      {
+        "userId": "b44feffd-b583-42bf-9cee-a111f77b5090",
+        "username": "Minn Khant"
+      }
+    ]
   },
   {
     "id": 1786170399101,
@@ -303,7 +320,7 @@
     "content": "hello from api",
     "image": null,
     "createdAt": "2026-08-08T05:30:05.662Z",
-    "likes": 1,
+    "likes": 2,
     "comments": [],
     "reposts": 0,
     "visibility": "public",
@@ -311,6 +328,10 @@
       {
         "userId": "40f6a193-5632-4db5-993b-a069552387a4",
         "username": "Shine Wunna Tun"
+      },
+      {
+        "userId": "b44feffd-b583-42bf-9cee-a111f77b5090",
+        "username": "Minn Khant"
       }
     ]
   },

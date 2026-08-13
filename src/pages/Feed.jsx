@@ -5,7 +5,6 @@ import LeftSidebar from "../components/LeftSidebar"
 import RightSidebar from "../components/RightSidebar"
 import TopBar from "../components/TopBar"
 import CreatePost from "../components/CreatePost"
-import StoriesBar from "../components/StoriesBar"
 import PostList from "../components/PostList"
 import { getVisiblePosts, shouldPersistSocialPost, toggleFollowRelationship } from "../lib/socialFeed"
 import { apiRequest } from "../lib/api"
@@ -201,21 +200,25 @@ export default function Feed() {
       {sidebarOpen && <div className="overlay" onClick={() => setSidebarOpen(false)} />}
 
       <main className="feed-center">
-        <TopBar setSidebarOpen={setSidebarOpen} darkMode={darkMode} setDarkMode={setDarkMode} />
+        <TopBar setSidebarOpen={setSidebarOpen} />
 
         <section className="feed-welcome">
           <div>
             <h2>Welcome back, {user?.username || 'MiitVerse member'}!</h2>
-            <p>Check your latest feed posts and manage your account from your profile.</p>
           </div>
         </section>
 
-        <StoriesBar />
         <CreatePost onAddPost={handleAddPost} onRefresh={loadFeedData} isRefreshing={isLoading} />
         <PostList posts={visiblePosts} isLoading={isLoading} />
       </main>
 
-      <RightSidebar following={following} onFollowToggle={handleFollowToggle} />
+      <RightSidebar
+        following={following}
+        onFollowToggle={handleFollowToggle}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        onRefresh={loadFeedData}
+      />
       <BottomNav />
     </div>
   );

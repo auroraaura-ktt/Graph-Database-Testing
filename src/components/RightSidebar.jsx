@@ -1,65 +1,41 @@
-export default function RightSidebar({ following = [], onFollowToggle = () => {} }) {
-  const suggestedUsers = [
-    { id: "aung", username: "Aung" },
-    { id: "sara", username: "Sara" },
-    { id: "mike", username: "Mike" },
-  ];
+import { Link } from "react-router-dom";
+import { FaMoon, FaSync } from "react-icons/fa";
+import { useAuth } from "../context/useAuth";
+
+export default function RightSidebar({ darkMode, setDarkMode, onRefresh }) {
+  const { user } = useAuth();
+
+  const initials = user?.username
+    ? user.username
+        .split(" ")
+        .map((part) => part[0]?.toUpperCase())
+        .join("")
+        .slice(0, 2)
+    : "U";
 
   return (
     <aside className="right-sidebar">
-      <div className="widget">
-        <div className="widget-header">
-          <h3>Follow Friends</h3>
-          <a href="#">View All</a>
-        </div>
-
-        {suggestedUsers.map((user) => {
-          const isFollowing = following.some((entry) => (entry?.id ?? entry?.userId ?? entry?.username) === user.id);
-
-          return (
-            <div className="follow-item" key={user.id}>
-              <div className="follow-avatar">{user.username.charAt(0)}</div>
-              <div>
-                <h4>{user.username}</h4>
-                <p>@{user.id}</p>
-              </div>
-              <button type="button" onClick={() => onFollowToggle(user)}>
-                {isFollowing ? "Following" : "Follow"}
-              </button>
-            </div>
-          );
-        })}
+      <div className="profile-card">
+        <div className="profile-avatar-large">{initials}</div>
+        <h3>{user?.username || "MiitVerse User"}</h3>
+        <p>{user?.email || "Guest member"}</p>
+        {user ? (
+          <Link className="profile-btn" to="/profile">View Profile</Link>
+        ) : (
+          <Link className="profile-btn" to="/login">Sign in</Link>
+        )}
       </div>
 
-      <div className="widget">
-        <div className="widget-header">
-          <h3>Events</h3>
-          <a href="#">View All</a>
-        </div>
+      <div className="feed-sidebar-controls">
+        <button type="button" className="feed-sidebar-action-btn refresh-btn" onClick={onRefresh}>
+          <FaSync />
+          <span>Refresh</span>
+        </button>
 
-        <div className="event-card">
-          <div className="event-icon">📅</div>
-          <div>
-            <h4>MIIT Tech Talk</h4>
-            <p>24 July • 2 PM</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="widget">
-        <div className="widget-header">
-          <h3>Sponsored</h3>
-        </div>
-
-        <div className="event-card">
-          <div className="event-icon">🚀</div>
-          <div>
-            <h4>Learn React</h4>
-            <p>Programming Course</p>
-          </div>
-        </div>
-
-        <button className="learn-btn">Learn More</button>
+        <button type="button" className="feed-sidebar-action-btn theme-btn" onClick={() => setDarkMode(!darkMode)}>
+          <FaMoon />
+          <span>{darkMode ? "Light" : "Night"}</span>
+        </button>
       </div>
     </aside>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FaCamera, FaNewspaper, FaCode, FaVideo, FaPaperPlane, FaSync } from "react-icons/fa";
+import { FaCamera, FaPaperPlane, FaSync } from "react-icons/fa";
 import { useAuth } from "../context/useAuth";
 
 const MAX_POST_LENGTH = 280;
@@ -171,12 +171,6 @@ export default function CreatePost({ onAddPost, onRefresh, isRefreshing }) {
           <FaCamera /> Photo
           <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageSelect} />
         </label>
-        <span>
-          <FaNewspaper /> Article
-        </span>
-        <span>
-          <FaCode /> Code
-        </span>
         <button type="button" className="video-trigger" onClick={onRefresh}>
           <FaSync /> {isRefreshing ? 'Refreshing…' : 'Refresh'}
         </button>

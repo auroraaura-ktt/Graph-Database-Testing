@@ -46,6 +46,13 @@ export default function Admin() {
   const [postsList, setPostsList] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [postsFilter, setPostsFilter] = useState('all') // all | user | page | suspended
+  const [reportRows, setReportRows] = useState([
+    { id: 'r-101', reporter: 'Jane Doe', type: 'Inappropriate Post', status: 'Open', target: 'Campus Event Reminder', author: 'MIIT Student Club' },
+    { id: 'r-102', reporter: 'Alex Kim', type: 'Spam', status: 'Investigating', target: 'Free giveaway link', author: 'Random Account' },
+    { id: 'r-103', reporter: 'May Win', type: 'Harassment', status: 'Open', target: 'Offensive comment thread', author: 'User A12' },
+    { id: 'r-104', reporter: 'Leo Tan', type: 'Misinformation', status: 'Resolved', target: 'Fake exam timetable', author: 'Page Admin' },
+  ])
+  const [expandedReportId, setExpandedReportId] = useState(null)
 
   const [inviteEmails, setInviteEmails] = useState('')
   const [inviteMessage, setInviteMessage] = useState({ type: '', text: '' })
@@ -452,7 +459,7 @@ export default function Admin() {
     })()
   }
 
-  const newestUsers = users.slice(0, 4)
+  const newestUsers = users.slice(0, 6)
 
   useEffect(() => {
     if (activeSection === 'users') {
@@ -711,10 +718,10 @@ export default function Admin() {
             </div>
 
             <div style={{ marginBottom: '12px' }}>
-              <button type="button" className={`admin-nav-item ${postsFilter === 'all' ? 'active' : ''}`} onClick={() => setPostsFilter('all')}>All</button>
-              <button type="button" className={`admin-nav-item ${postsFilter === 'user' ? 'active' : ''}`} onClick={() => setPostsFilter('user')} style={{ marginLeft: '8px' }}>User Posts</button>
-              <button type="button" className={`admin-nav-item ${postsFilter === 'page' ? 'active' : ''}`} onClick={() => setPostsFilter('page')} style={{ marginLeft: '8px' }}>Page Posts</button>
-              <button type="button" className={`admin-nav-item ${postsFilter === 'suspended' ? 'active' : ''}`} onClick={() => setPostsFilter('suspended')} style={{ marginLeft: '8px' }}>Suspended</button>
+              <button type="button" className={`admin-nav-item admin-post-filter-btn ${postsFilter === 'all' ? 'active' : ''}`} onClick={() => setPostsFilter('all')}>All</button>
+              <button type="button" className={`admin-nav-item admin-post-filter-btn ${postsFilter === 'user' ? 'active' : ''}`} onClick={() => setPostsFilter('user')} style={{ marginLeft: '8px' }}>User Posts</button>
+              <button type="button" className={`admin-nav-item admin-post-filter-btn ${postsFilter === 'page' ? 'active' : ''}`} onClick={() => setPostsFilter('page')} style={{ marginLeft: '8px' }}>Page Posts</button>
+              <button type="button" className={`admin-nav-item admin-post-filter-btn ${postsFilter === 'suspended' ? 'active' : ''}`} onClick={() => setPostsFilter('suspended')} style={{ marginLeft: '8px' }}>Suspended</button>
               <button type="button" onClick={() => loadAllPosts()} style={{ marginLeft: '12px' }}>Refresh</button>
             </div>
 
@@ -821,8 +828,67 @@ export default function Admin() {
               <h2>{pageTitles[activeSection]}</h2>
               <p>{pageDescriptions[activeSection]}</p>
             </div>
-            <div className="admin-create-form">
-              <p className="message message-success">This section is ready for future management features.</p>
+
+            <div className="admin-users-table-wrap admin-report-table-wrap">
+              <table className="admin-users-table admin-reports-table">
+                <thead>
+                  <tr>
+                    <th>Reporter</th>
+                    <th>Reported Content</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportRows.map((report) => (
+                    <tr key={report.id}>
+                      <td>{report.reporter}</td>
+                      <td>
+                        <div className="admin-report-target">
+                          <strong>{report.target}</strong>
+                          <span>by {report.author}</span>
+                        </div>
+                      </td>
+                      <td>{report.type}</td>
+                      <td>
+                        <span className={`admin-report-status ${report.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                          {report.status}
+                        </span>
+                      </td>
+                      <td className="admin-report-action-cell">
+                        <div className="admin-report-action-wrap">
+                          <button
+                            type="button"
+                            className="admin-more-actions-btn"
+                            onClick={() => setExpandedReportId((currentId) => currentId === report.id ? null : report.id)}
+                          >
+                            More actions →
+                          </button>
+
+                          {expandedReportId === report.id && (
+                            <div className="admin-report-action-menu">
+                              <button type="button" onClick={() => window.alert(`Previewing report: ${report.target}`)}>Preview</button>
+                              <button type="button" onClick={() => {
+                                setReportRows((currentRows) => currentRows.map((item) => item.id === report.id ? { ...item, status: 'Resolved' } : item));
+                                setExpandedReportId(null);
+                              }}>
+                                Resolve
+                              </button>
+                              <button type="button" className="admin-delete-btn" onClick={() => {
+                                setReportRows((currentRows) => currentRows.filter((item) => item.id !== report.id));
+                                setExpandedReportId(null);
+                              }}>
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
         )
@@ -843,36 +909,14 @@ export default function Admin() {
               </div>
 
               <div className="stat-card">
-                <h3>📅 Events</h3>
-                <h2>327</h2>
-                <p>+4% this month</p>
-              </div>
-
-              <div className="stat-card">
-                <h3>🚩 Reports</h3>
+                <h3>� Reports</h3>
                 <h2>18</h2>
                 <p>Needs review</p>
               </div>
             </section>
 
             <section className="dashboard-grid">
-              <div className="activity-card">
-                <h2>Recent Activity</h2>
-                <div className="activity-item">
-                  <strong>John Doe</strong> created a new event
-                </div>
-                <div className="activity-item">
-                  <strong>Sarah</strong> posted a new update
-                </div>
-                <div className="activity-item">
-                  <strong>Michael</strong> reported a post
-                </div>
-                <div className="activity-item">
-                  <strong>Emma</strong> joined MiitVerse
-                </div>
-              </div>
-
-              <div className="users-card">
+              <div className="users-card full-width-users-card">
                 <h2>Newest Users</h2>
                 {newestUsers.length > 0 ? (
                   newestUsers.map((userItem) => (

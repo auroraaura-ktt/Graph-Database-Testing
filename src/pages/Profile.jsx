@@ -1,32 +1,85 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  FaArrowLeft,
+  FaCamera,
+  FaCalendarAlt,
+  FaCheckCircle,
+  FaEnvelope,
+  FaIdCard,
+  FaLock,
+  FaShieldAlt,
+  FaSignOutAlt,
+  FaUpload,
+  FaUser,
+} from 'react-icons/fa'
+
 import { useAuth } from '../context/useAuth'
-import './Admin.css'
+import './Profile.css'
+
+function getInitials(username = '') {
+  const parts = username.trim().split(/\s+/).filter(Boolean)
+
+  if (!parts.length) return 'U'
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('')
+}
+
+function formatDate(value) {
+  if (!value) return 'N/A'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A'
+  }
+
+  return date.toLocaleDateString()
+}
 
 export default function Profile() {
   const navigate = useNavigate()
-  const { user, logout, updateProfile, changePassword } = useAuth()
+
+  const {
+    user,
+    logout,
+    updateProfile,
+    updateAvatar,
+    changePassword,
+  } = useAuth()
+
+  const fileInputRef = useRef(null)
+
   const [username, setUsername] = useState(user?.username ?? '')
-  const [usernameStatus, setUsernameStatus] = useState(null)
-  const [usernameError, setUsernameError] = useState(null)
+
+  const [usernameStatus, setUsernameStatus] = useState('')
+  const [usernameError, setUsernameError] = useState('')
+
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [passwordStatus, setPasswordStatus] = useState(null)
-  const [passwordError, setPasswordError] = useState(null)
+
+  const [passwordStatus, setPasswordStatus] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatarUrl || '')
+  const [selectedAvatar, setSelectedAvatar] = useState(null)
+  const [avatarStatus, setAvatarStatus] = useState('')
+  const [avatarError, setAvatarError] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   useEffect(() => {
     setUsername(user?.username ?? '')
-  }, [user?.username])
+    setAvatarPreview(user?.avatarUrl || '')
+  }, [user?.username, user?.avatarUrl])
 
-  const initials = useMemo(() => {
-    return user?.username
-      ? user.username
-          .split(' ')
-          .map((part) => part[0]?.toUpperCase())
-          .join('')
-      : 'U'
-  }, [user?.username])
+  const initials = useMemo(
+    () => getInitials(user?.username),
+    [user?.username]
+  )
 
   if (!user) {
     return null
@@ -37,24 +90,91 @@ export default function Profile() {
     navigate('/login')
   }
 
-  async function handleUsernameSubmit(event) {
-    event.preventDefault()
-    setUsernameError(null)
-    setUsernameStatus(null)
+  function handleAvatarSelect(event) {
+    const file = event.target.files?.[0]
+
+    setAvatarError('')
+    setAvatarStatus('')
+
+    if (!file) {
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please select an image file.')
+      return
+    }
+
+    const maxSize = 5 * 1024 * 1024
+
+    if (file.size > maxSize) {
+      setAvatarError('Profile photo must be smaller than 5 MB.')
+      return
+    }
+
+    setSelectedAvatar(file)
+
+    const previewUrl = URL.createObjectURL(file)
+    setAvatarPreview(previewUrl)
+  }
+
+  async function handleAvatarUpload() {
+    if (!selectedAvatar) {
+      fileInputRef.current?.click()
+      return
+    }
+
+    setAvatarUploading(true)
+    setAvatarError('')
+    setAvatarStatus('')
 
     try {
-      const updatedUser = await updateProfile({ username })
+      await updateAvatar(selectedAvatar)
+
+      setSelectedAvatar(null)
+      setAvatarStatus('Profile photo updated successfully.')
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } catch (error) {
+      setAvatarError(
+        error?.data?.message ||
+          error?.message ||
+          'Could not update profile photo.'
+      )
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  async function handleUsernameSubmit(event) {
+    event.preventDefault()
+
+    setUsernameError('')
+    setUsernameStatus('')
+
+    try {
+      const updatedUser = await updateProfile({
+        username,
+      })
+
       setUsername(updatedUser.username)
       setUsernameStatus('Username updated successfully.')
     } catch (error) {
-      setUsernameError(error?.data?.message || error.message || 'Could not update username.')
+      setUsernameError(
+        error?.data?.message ||
+          error?.message ||
+          'Could not update username.'
+      )
     }
   }
 
   async function handlePasswordSubmit(event) {
     event.preventDefault()
-    setPasswordError(null)
-    setPasswordStatus(null)
+
+    setPasswordError('')
+    setPasswordStatus('')
 
     if (newPassword !== confirmPassword) {
       setPasswordError('New passwords do not match.')
@@ -62,274 +182,421 @@ export default function Profile() {
     }
 
     try {
-      await changePassword({ currentPassword, newPassword })
+      await changePassword({
+        currentPassword,
+        newPassword,
+      })
+
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
+
       setPasswordStatus('Password updated successfully.')
     } catch (error) {
-      setPasswordError(error?.data?.message || error.message || 'Could not update password.')
+      setPasswordError(
+        error?.data?.message ||
+          error?.message ||
+          'Could not update password.'
+      )
     }
   }
 
-  const styles = {
-    page: {
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #040b16 0%, #07111f 45%, #0f172a 100%)',
-      color: '#f8fafc',
-      padding: '24px 16px 48px',
-      fontFamily: 'Inter, Segoe UI, sans-serif',
-    },
-    container: {
-      maxWidth: '1100px',
-      margin: '0 auto',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '18px',
-    },
-    hero: {
-      display: 'grid',
-      gap: '16px',
-      gridTemplateColumns: '1.2fr 0.8fr',
-    },
-    card: {
-      background: 'rgba(10, 18, 32, 0.95)',
-      border: '1px solid rgba(148, 163, 184, 0.22)',
-      borderRadius: '16px',
-      padding: '22px',
-      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)',
-    },
-    profileCard: {
-      display: 'flex',
-      gap: '16px',
-      alignItems: 'flex-start',
-    },
-    avatar: {
-      width: '58px',
-      height: '58px',
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, #64ffda, #4f46e5)',
-      color: '#08111d',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '22px',
-      fontWeight: 700,
-      flexShrink: 0,
-    },
-    eyebrow: {
-      margin: '0 0 6px',
-      color: '#64ffda',
-      fontSize: '12px',
-      letterSpacing: '0.16em',
-      textTransform: 'uppercase',
-      fontWeight: 700,
-    },
-    name: {
-      margin: '0 0 6px',
-      fontSize: '24px',
-      fontWeight: 700,
-    },
-    handle: {
-      margin: '0 0 10px',
-      color: '#94a3b8',
-    },
-    bio: {
-      margin: '0',
-      color: '#cbd5e1',
-      lineHeight: 1.6,
-    },
-    infoCard: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-    },
-    sectionTitle: {
-      margin: '0 0 4px',
-      fontSize: '18px',
-      fontWeight: 700,
-    },
-    infoRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      gap: '10px',
-      color: '#cbd5e1',
-      paddingBottom: '8px',
-      borderBottom: '1px solid rgba(148, 163, 184, 0.16)',
-    },
-    formsSection: {
-      display: 'grid',
-      gap: '16px',
-      gridTemplateColumns: '1fr 1fr',
-    },
-    formCard: {
-      background: 'rgba(10, 18, 32, 0.95)',
-      border: '1px solid rgba(148, 163, 184, 0.22)',
-      borderRadius: '16px',
-      padding: '22px',
-      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.25)',
-    },
-    label: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      fontSize: '14px',
-      color: '#e2e8f0',
-      marginBottom: '12px',
-    },
-    input: {
-      border: '1px solid rgba(148, 163, 184, 0.26)',
-      borderRadius: '10px',
-      padding: '10px 12px',
-      background: '#020617',
-      color: '#f8fafc',
-      outline: 'none',
-    },
-    button: {
-      border: 'none',
-      borderRadius: '10px',
-      padding: '10px 14px',
-      cursor: 'pointer',
-      fontWeight: 600,
-    },
-    primaryButton: {
-      background: '#64ffda',
-      color: '#07111f',
-    },
-    secondaryButton: {
-      background: 'transparent',
-      color: '#f8fafc',
-      border: '1px solid rgba(148, 163, 184, 0.22)',
-    },
-    actions: {
-      display: 'flex',
-      gap: '10px',
-      justifyContent: 'flex-end',
-      flexWrap: 'wrap',
-    },
-    messageSuccess: {
-      color: '#64ffda',
-      fontSize: '13px',
-      margin: '8px 0 0',
-    },
-    messageError: {
-      color: '#ff6b6b',
-      fontSize: '13px',
-      margin: '8px 0 0',
-    },
-  }
+  const avatarSource = avatarPreview || user.avatarUrl
 
   return (
-    <main style={styles.page}>
-        <div style={styles.container}>
-          <section style={styles.hero}>
-            <div style={{ ...styles.card, ...styles.profileCard }}>
-              <div style={styles.avatar}>{initials}</div>
-              <div>
-                <p style={styles.eyebrow}>MIITverse profile</p>
-                <h1 style={styles.name}>{user.username}</h1>
-                <p style={styles.handle}>@{user.username?.toLowerCase().replace(/\s+/g, '')}</p>
-                <p style={styles.bio}>
-                  Welcome back! Manage your profile details and keep your account secure.
+    <main className="mv-profile-page">
+      <div className="mv-profile-container">
+
+        {/* TOP BAR */}
+        <header className="mv-profile-topbar">
+          <button
+            className="mv-back-button"
+            onClick={() => navigate('/feed')}
+          >
+            <FaArrowLeft />
+            <span>Back to Feed</span>
+          </button>
+
+          <div className="mv-profile-brand">
+            <span>MIIT</span>
+            <strong>VERSE</strong>
+          </div>
+        </header>
+
+        {/* HERO PROFILE */}
+        <section className="mv-profile-hero">
+
+          <div className="mv-cover">
+            <div className="mv-cover-glow" />
+
+            <div className="mv-cover-text">
+              <span>MIITVERSE</span>
+              <strong>Official Social Hub of MIIT</strong>
+            </div>
+          </div>
+
+          <div className="mv-profile-main">
+
+            <div className="mv-avatar-wrapper">
+
+              <div className="mv-avatar">
+
+                {avatarSource ? (
+                  <img
+                    src={avatarSource}
+                    alt={`${user.username}'s profile`}
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
+
+              </div>
+
+              <button
+                type="button"
+                className="mv-camera-button"
+                title="Choose profile photo"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FaCamera />
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={handleAvatarSelect}
+                hidden
+              />
+            </div>
+
+            <div className="mv-profile-identity">
+
+              <div className="mv-name-line">
+                <h1>{user.username}</h1>
+
+                {user.verified !== false && (
+                  <span
+                    className="mv-verified"
+                    title="Verified MiitVerse account"
+                  >
+                    <FaCheckCircle />
+                  </span>
+                )}
+              </div>
+
+              <p className="mv-handle">
+                @{user.username?.toLowerCase().replace(/\s+/g, '')}
+              </p>
+
+              <p className="mv-bio">
+                Welcome back! Manage your profile details,
+                personal information, and account security.
+              </p>
+
+              <div className="mv-profile-actions">
+
+                <button
+                  type="button"
+                  className="mv-primary-button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <FaUpload />
+                  Choose Photo
+                </button>
+
+                <button
+                  type="button"
+                  className="mv-secondary-button"
+                  onClick={handleAvatarUpload}
+                  disabled={!selectedAvatar || avatarUploading}
+                >
+                  {avatarUploading
+                    ? 'Uploading...'
+                    : 'Save Profile Photo'}
+                </button>
+
+              </div>
+
+              {avatarStatus && (
+                <p className="mv-success">
+                  {avatarStatus}
                 </p>
+              )}
+
+              {avatarError && (
+                <p className="mv-error">
+                  {avatarError}
+                </p>
+              )}
+
+              <p className="mv-photo-hint">
+                JPG, PNG, WEBP or GIF · Maximum 5 MB
+              </p>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ACCOUNT INFORMATION */}
+        <section className="mv-content-grid">
+
+          <div className="mv-card mv-account-card">
+
+            <div className="mv-card-heading">
+              <div className="mv-card-icon">
+                <FaUser />
+              </div>
+
+              <div>
+                <h2>Account details</h2>
+                <p>Your MiitVerse account information</p>
               </div>
             </div>
 
-            <div style={{ ...styles.card, ...styles.infoCard }}>
-              <h2 style={styles.sectionTitle}>Account details</h2>
-              <div style={styles.infoRow}><span>Username</span><strong>{user.username}</strong></div>
-              <div style={styles.infoRow}><span>Email</span><strong>{user.email}</strong></div>
-              <div style={styles.infoRow}><span>User ID</span><strong>{user.id}</strong></div>
-              <div style={styles.infoRow}><span>Joined</span><strong>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</strong></div>
+            <div className="mv-info-list">
+
+              <div className="mv-info-row">
+                <div className="mv-info-label">
+                  <FaUser />
+                  <span>Username</span>
+                </div>
+
+                <strong>{user.username}</strong>
+              </div>
+
+              <div className="mv-info-row">
+                <div className="mv-info-label">
+                  <FaEnvelope />
+                  <span>Email</span>
+                </div>
+
+                <strong className="mv-break">
+                  {user.email}
+                </strong>
+              </div>
+
+              <div className="mv-info-row">
+                <div className="mv-info-label">
+                  <FaIdCard />
+                  <span>User ID</span>
+                </div>
+
+                <strong className="mv-user-id">
+                  {user.id}
+                </strong>
+              </div>
+
+              <div className="mv-info-row">
+                <div className="mv-info-label">
+                  <FaCalendarAlt />
+                  <span>Joined</span>
+                </div>
+
+                <strong>
+                  {formatDate(user.createdAt)}
+                </strong>
+              </div>
+
+              <div className="mv-info-row">
+                <div className="mv-info-label">
+                  <FaShieldAlt />
+                  <span>Account role</span>
+                </div>
+
+                <strong className="mv-role">
+                  {user.role || 'user'}
+                </strong>
+              </div>
+
+              <div className="mv-info-row">
+                <div className="mv-info-label">
+                  <FaCheckCircle />
+                  <span>Account status</span>
+                </div>
+
+                <strong className="mv-status">
+                  Active
+                </strong>
+              </div>
+
             </div>
-          </section>
+          </div>
 
-          <section style={styles.formsSection}>
-            <div style={styles.formCard}>
-              <h2 style={styles.sectionTitle}>Update username</h2>
-              <p style={{ margin: '6px 0 14px', color: '#94a3b8' }}>Change the name shown across your profile.</p>
+          {/* SETTINGS */}
+          <div className="mv-settings-column">
 
-              <form onSubmit={handleUsernameSubmit}>
-                <label style={styles.label}>
+            {/* USERNAME */}
+            <div className="mv-card">
+
+              <div className="mv-card-heading">
+                <div className="mv-card-icon">
+                  <FaUser />
+                </div>
+
+                <div>
+                  <h2>Update username</h2>
+                  <p>
+                    Change the name shown across MiitVerse.
+                  </p>
+                </div>
+              </div>
+
+              <form
+                className="mv-form"
+                onSubmit={handleUsernameSubmit}
+              >
+
+                <label>
                   New username
+
                   <input
-                    style={styles.input}
                     type="text"
                     value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    required
+                    onChange={(event) =>
+                      setUsername(event.target.value)
+                    }
                     minLength={3}
                     maxLength={30}
+                    required
                   />
                 </label>
 
-                {usernameStatus && <p style={styles.messageSuccess}>{usernameStatus}</p>}
-                {usernameError && <p style={styles.messageError}>{usernameError}</p>}
+                {usernameStatus && (
+                  <p className="mv-success">
+                    {usernameStatus}
+                  </p>
+                )}
 
-                <button type="submit" style={{ ...styles.button, ...styles.primaryButton, marginTop: '10px' }}>
-                  Save username
+                {usernameError && (
+                  <p className="mv-error">
+                    {usernameError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="mv-primary-button"
+                >
+                  Save Username
                 </button>
+
               </form>
             </div>
 
-            <div style={styles.formCard}>
-              <h2 style={styles.sectionTitle}>Change password</h2>
-              <p style={{ margin: '6px 0 14px', color: '#94a3b8' }}>Keep your account secure with a fresh password.</p>
+            {/* PASSWORD */}
+            <div className="mv-card">
 
-              <form onSubmit={handlePasswordSubmit}>
-                <label style={styles.label}>
+              <div className="mv-card-heading">
+                <div className="mv-card-icon">
+                  <FaLock />
+                </div>
+
+                <div>
+                  <h2>Change password</h2>
+                  <p>
+                    Keep your MiitVerse account secure.
+                  </p>
+                </div>
+              </div>
+
+              <form
+                className="mv-form"
+                onSubmit={handlePasswordSubmit}
+              >
+
+                <label>
                   Current password
+
                   <input
-                    style={styles.input}
                     type="password"
                     value={currentPassword}
-                    onChange={(event) => setCurrentPassword(event.target.value)}
-                    required
+                    onChange={(event) =>
+                      setCurrentPassword(event.target.value)
+                    }
                     minLength={6}
+                    required
                   />
                 </label>
-                <label style={styles.label}>
+
+                <label>
                   New password
+
                   <input
-                    style={styles.input}
                     type="password"
                     value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    required
+                    onChange={(event) =>
+                      setNewPassword(event.target.value)
+                    }
                     minLength={8}
+                    required
                   />
                 </label>
-                <label style={styles.label}>
+
+                <label>
                   Confirm new password
+
                   <input
-                    style={styles.input}
                     type="password"
                     value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    required
+                    onChange={(event) =>
+                      setConfirmPassword(event.target.value)
+                    }
                     minLength={8}
+                    required
                   />
                 </label>
 
-                {passwordStatus && <p style={styles.messageSuccess}>{passwordStatus}</p>}
-                {passwordError && <p style={styles.messageError}>{passwordError}</p>}
+                {passwordStatus && (
+                  <p className="mv-success">
+                    {passwordStatus}
+                  </p>
+                )}
 
-                <button type="submit" style={{ ...styles.button, ...styles.primaryButton, marginTop: '10px' }}>
-                  Change password
+                {passwordError && (
+                  <p className="mv-error">
+                    {passwordError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="mv-primary-button"
+                >
+                  <FaLock />
+                  Change Password
                 </button>
+
               </form>
             </div>
-          </section>
 
-          <section style={styles.actions}>
-            <button type="button" style={{ ...styles.button, ...styles.secondaryButton }} onClick={() => navigate('/feed')}>
-              Back to Feed
-            </button>
-            <button type="button" style={{ ...styles.button, ...styles.secondaryButton }} onClick={handleLogout}>
-              Logout
-            </button>
-          </section>
-        </div>
-      </main>
+          </div>
+        </section>
+
+        {/* BOTTOM ACTIONS */}
+        <section className="mv-bottom-actions">
+
+          <button
+            type="button"
+            className="mv-secondary-button"
+            onClick={() => navigate('/feed')}
+          >
+            <FaArrowLeft />
+            Back to Feed
+          </button>
+
+          <button
+            type="button"
+            className="mv-danger-button"
+            onClick={handleLogout}
+          >
+            <FaSignOutAlt />
+            Logout
+          </button>
+
+        </section>
+
+      </div>
+    </main>
   )
 }

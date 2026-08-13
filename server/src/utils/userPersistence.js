@@ -8,6 +8,10 @@ const mongoUserSchema = new mongoose.Schema(
     username: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
+    avatarUrl: {
+      type: String,
+      default: '',
+    },
     role: { type: String, default: 'user' },
     suspended: { type: Boolean, default: false },
     verified: { type: Boolean, default: false },
@@ -44,6 +48,7 @@ export function queuePendingNeo4jWrite(userData) {
     username: userData.username,
     email: userData.email,
     passwordHash: userData.passwordHash,
+    avatarUrl: userData.avatarUrl || '',
     role: userData.role || 'user',
     verified: Boolean(userData.verified),
     createdAt: userData.createdAt || new Date().toISOString(),
@@ -79,6 +84,10 @@ export async function writeUserToMongo(userData = {}) {
 
   if (userData.role) {
     update.$set.role = userData.role
+  }
+
+  if (typeof userData.avatarUrl === 'string') {
+    update.$set.avatarUrl = userData.avatarUrl
   }
 
   if (typeof userData.verified === 'boolean') {
@@ -161,6 +170,7 @@ export async function syncUserToNeo4j(userData) {
               user.role = $role,
               user.verified = $verified,
               user.createdAt = $createdAt,
+              user.avatarUrl = coalesce($avatarUrl, user.avatarUrl),
               user.source = 'mongo'
           RETURN user
         `,
@@ -169,6 +179,7 @@ export async function syncUserToNeo4j(userData) {
           username: userData.username,
           email: userData.email,
           passwordHash: userData.passwordHash,
+          avatarUrl: userData.avatarUrl || null,
           role: userData.role || 'user',
           verified: Boolean(userData.verified),
           createdAt: userData.createdAt || new Date().toISOString(),
