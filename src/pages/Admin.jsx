@@ -173,37 +173,34 @@ export default function Admin() {
     }
   }
 
-  const handleCreateTestPost = (e) => {
+  const handleCreateTestPost = async (e) => {
     e.preventDefault()
     setCreatingTestPost(true)
     setTestPostMessage({ type: '', text: '' })
 
     try {
-      const newPost = {
-        id: Date.now(),
-        author: testPostData.author || 'Test User',
-        avatar: '📝',
-        timestamp: new Date().toLocaleString(),
-        content: testPostData.content,
-        image: testPostData.image || null,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-      }
-
-      const existingPosts = JSON.parse(localStorage.getItem('testPosts') || '[]')
-      const updatedPosts = [newPost, ...existingPosts]
-      localStorage.setItem('testPosts', JSON.stringify(updatedPosts))
+      const data = await apiRequest('/social/posts', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          username: testPostData.author.trim() || user?.username || 'Administrator',
+          content: testPostData.content.trim(),
+          image: testPostData.image.trim() || null,
+        }),
+      })
 
       setTestPostMessage({
         type: 'success',
-        text: 'Test post created successfully! Check the Feed page to see it.',
+        text: data.persistence?.mongoSaved
+          ? 'Post saved to Neo4j and MongoDB.'
+          : 'Post saved to Neo4j. MongoDB is currently unavailable.',
       })
       setTestPostData({ author: '', content: '', image: '' })
+      await loadAllPosts()
     } catch (err) {
       setTestPostMessage({
         type: 'error',
-        text: 'Failed to create test post',
+        text: err.message || 'Failed to create post',
       })
     } finally {
       setCreatingTestPost(false)
@@ -725,10 +722,28 @@ export default function Admin() {
               <button type="button" onClick={() => loadAllPosts()} style={{ marginLeft: '12px' }}>Refresh</button>
             </div>
 
+            <form className="admin-create-form" onSubmit={handleCreateTestPost} style={{ marginBottom: '20px' }}>
+              <h3>Create post</h3>
+              {testPostMessage.text && <p className={`message message-${testPostMessage.type}`}>{testPostMessage.text}</p>}
+              <div className="form-group">
+                <label htmlFor="postAuthor">Display name (optional)</label>
+                <input id="postAuthor" name="author" value={testPostData.author} onChange={handleTestPostChange} disabled={creatingTestPost} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="postContent">Content</label>
+                <textarea id="postContent" name="content" value={testPostData.content} onChange={handleTestPostChange} disabled={creatingTestPost} required />
+              </div>
+              <div className="form-group">
+                <label htmlFor="postImage">Image URL (optional)</label>
+                <input id="postImage" name="image" type="url" value={testPostData.image} onChange={handleTestPostChange} disabled={creatingTestPost} />
+              </div>
+              <button type="submit" disabled={creatingTestPost}>{creatingTestPost ? 'Saving…' : 'Publish post'}</button>
+            </form>
+
             {loadingPosts && <p>Loading posts...</p>}
 
             {!loadingPosts && postsList.length === 0 && (
-              <p>No posts found in local storage.</p>
+              <p>No posts found.</p>
             )}
 
             {!loadingPosts && postsList.length > 0 && (

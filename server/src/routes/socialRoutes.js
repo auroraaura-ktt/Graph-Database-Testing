@@ -18,6 +18,7 @@ import {
   toggleSocialPostLike,
 } from '../utils/socialStore.js';
 import { listPageRecords } from '../utils/pagePersistence.js';
+import { persistSocialPost } from '../utils/socialPersistence.js';
 
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -76,7 +77,7 @@ router.get('/posts', authMiddleware, async (req, res) => {
   res.json({ posts });
 });
 
-router.post('/posts', authMiddleware, upload.single('image'), (req, res) => {
+router.post('/posts', authMiddleware, upload.single('image'), async (req, res) => {
   const displayName = req.body?.username || req.user?.username || req.body?.user?.username || 'MiitVerse member';
   const content = req.body?.content || req.body?.message || '';
   const imageUrl = typeof req.body?.image === 'string' && req.body.image.trim()
@@ -93,6 +94,10 @@ router.post('/posts', authMiddleware, upload.single('image'), (req, res) => {
     resolvedImageUrl = `/api/social/uploads/${fileName}`;
   }
 
+  if (!content.trim()) {
+    return res.status(400).json({ message: 'Post content is required' });
+  }
+
   const post = createSocialPost({
     ...req.body,
     content,
@@ -102,7 +107,15 @@ router.post('/posts', authMiddleware, upload.single('image'), (req, res) => {
     suspended: false,
   });
 
-  res.status(201).json({ post });
+  try {
+    const persistence = await persistSocialPost(post);
+    res.status(201).json({ post, persistence });
+  } catch (error) {
+    // Keep Neo4j mandatory: do not report success if the graph write failed.
+    console.error('Neo4j post persistence failed:', error.message);
+    deleteSocialPostById(post.id);
+    res.status(503).json({ message: 'Post could not be saved to Neo4j. Please try again.' });
+  }
 });
 
 router.post('/posts/:id/likes', authMiddleware, (req, res) => {
