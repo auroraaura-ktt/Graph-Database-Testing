@@ -91,7 +91,23 @@ export default function Feed() {
 
   useEffect(() => {
     loadFeedData()
+
+    const refreshTimer = window.setInterval(() => {
+      loadFeedData()
+    }, 15000)
+
+    return () => window.clearInterval(refreshTimer)
   }, [loadFeedData])
+
+  const handlePostUpdated = useCallback((updatedPost) => {
+    if (!updatedPost?.id) return
+
+    setPosts((currentPosts) => currentPosts.map((post) => (
+      String(post.id) === String(updatedPost.id)
+        ? { ...post, ...updatedPost }
+        : post
+    )))
+  }, [])
 
   const handleAddPost = async (newPost) => {
     const storedAuth = typeof window !== 'undefined' ? window.localStorage.getItem('miitverse-auth') : null
@@ -209,7 +225,11 @@ export default function Feed() {
         </section>
 
         <CreatePost onAddPost={handleAddPost} onRefresh={loadFeedData} isRefreshing={isLoading} />
-        <PostList posts={visiblePosts} isLoading={isLoading} />
+        <PostList
+          posts={visiblePosts}
+          isLoading={isLoading}
+          onPostUpdated={handlePostUpdated}
+        />
       </main>
 
       <RightSidebar

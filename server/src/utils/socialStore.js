@@ -75,26 +75,30 @@ export function shuffleUserPostsByReactions(posts = [], random = Math.random) {
     .map((entry) => entry.post);
 }
 
+function sortPagePostsByLatest(posts = []) {
+  return [...(posts || [])].sort((left, right) => {
+    return new Date(right.createdAt || 0) - new Date(left.createdAt || 0);
+  });
+}
+
 export function applyUserPostWeightedShuffle(posts = [], options = {}) {
   const pagePostUserIds = options.pagePostUserIds || options.pageUserIds || [];
   const random = options.random || Math.random;
+  const pagePosts = [];
   const userPosts = [];
 
   for (const post of posts || []) {
-    if (!isPagePost(post, pagePostUserIds)) {
-      userPosts.push(post);
-    }
+    if (isPagePost(post, pagePostUserIds)) pagePosts.push(post);
+    else userPosts.push(post);
   }
 
   const shuffledUserPosts = shuffleUserPostsByReactions(userPosts, random);
-  let nextUserIndex = 0;
+  const orderedPagePosts = sortPagePostsByLatest(pagePosts).map((post) => ({
+    ...post,
+    source: post.source || 'page',
+  }));
 
-  return (posts || []).map((post) => {
-    if (isPagePost(post, pagePostUserIds)) return post;
-    const nextPost = shuffledUserPosts[nextUserIndex];
-    nextUserIndex += 1;
-    return nextPost;
-  });
+  return [...orderedPagePosts, ...shuffledUserPosts];
 }
 
 export function toggleFollowRelationship(currentFollowing = [], targetUser = null) {
@@ -124,7 +128,9 @@ export function listAllSocialPosts() {
 export function listSocialPostsByUserId(userId) {
   if (!userId) return [];
   const posts = readJson(postsFile, []);
-  return (posts || []).filter((p) => p && (p.userId === userId || p.userId === String(userId)));
+  return sortPagePostsByLatest(
+    (posts || []).filter((p) => p && (p.userId === userId || p.userId === String(userId)))
+  );
 }
 
 export function deleteSocialPostById(postId) {

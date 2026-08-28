@@ -18,7 +18,7 @@ function formatTimestamp(value) {
   return `${Math.floor(minutesAgo / 1440)}d ago`;
 }
 
-export default function PostCard({ post = {} }) {
+export default function PostCard({ post = {}, onPostUpdated }) {
   const {
     id = "default",
     username = post.author || post.username || "",
@@ -75,6 +75,7 @@ export default function PostCard({ post = {} }) {
         liked: Boolean(result.reacted),
         likers: nextLikers,
       }));
+      onPostUpdated?.(nextPost);
     } catch (error) {
       console.error("Failed to save reaction:", error);
     } finally {

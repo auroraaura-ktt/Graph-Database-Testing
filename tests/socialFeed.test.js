@@ -78,12 +78,12 @@ test('shuffleUserPostsByReactions still randomizes user posts', () => {
   assert.deepEqual(shuffled.map((post) => post.id), ['second', 'third', 'first']);
 });
 
-test('applyUserPostWeightedShuffle preserves reserved page slots while shuffling user posts', () => {
+test('applyUserPostWeightedShuffle puts newest page posts before reaction-weighted user posts', () => {
   const posts = [
     { id: 'user-low', userId: 'user-1', likes: 1 },
-    { id: 'page-new', userId: 'page-1', likes: 0 },
+    { id: 'page-new', userId: 'page-1', likes: 0, createdAt: '2026-08-19T12:00:00.000Z' },
     { id: 'user-high', userId: 'user-2', likes: 100 },
-    { id: 'page-old', userId: 'page-2', likes: 0 },
+    { id: 'page-old', userId: 'page-2', likes: 0, createdAt: '2026-08-18T12:00:00.000Z' },
     { id: 'user-middle', userId: 'user-3', likes: 20 },
   ];
 
@@ -93,18 +93,18 @@ test('applyUserPostWeightedShuffle preserves reserved page slots while shuffling
   });
 
   assert.deepEqual(shuffled.map((post) => post.id), [
-    'user-high',
     'page-new',
-    'user-middle',
     'page-old',
+    'user-high',
+    'user-middle',
     'user-low',
   ]);
 });
 
-test('getVisiblePosts preserves page posts when source is page and randomization is applied', () => {
+test('getVisiblePosts puts source page posts first', () => {
   const posts = [
     { id: 'user-low', userId: 'user-1', likes: 1, visibility: 'public' },
-    { id: 'page-new', userId: 'page-1', likes: 0, visibility: 'public', source: 'page' },
+    { id: 'page-new', userId: 'page-1', likes: 0, visibility: 'public', source: 'page', createdAt: '2026-08-19T12:00:00.000Z' },
     { id: 'user-high', userId: 'user-2', likes: 100, visibility: 'public' },
   ];
 
@@ -112,5 +112,5 @@ test('getVisiblePosts preserves page posts when source is page and randomization
     random: () => 0.5,
   });
 
-  assert.deepEqual(visible.map((post) => post.id), ['user-high', 'page-new', 'user-low']);
+  assert.deepEqual(visible.map((post) => post.id), ['page-new', 'user-high', 'user-low']);
 });

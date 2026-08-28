@@ -7,6 +7,7 @@ import {
   deleteSocialPostById,
   getVisiblePosts,
   listAllSocialPosts,
+  listSocialPostsByUserId,
   shuffleUserPostsByReactions,
   toggleFollowRelationship,
 } from '../src/utils/socialStore.js';
@@ -50,6 +51,29 @@ test('createSocialPost persists an image URL in the shared post store', () => {
   deleteSocialPostById(created.id);
 });
 
+test('page post refresh returns posts newest first', () => {
+  const testUserId = `page-refresh-test-${Date.now()}`;
+  const older = createSocialPost({
+    userId: testUserId,
+    username: 'Test Page',
+    content: 'Older page post',
+    createdAt: '2026-08-18T12:00:00.000Z',
+  });
+  const newer = createSocialPost({
+    userId: testUserId,
+    username: 'Test Page',
+    content: 'Newer page post',
+    createdAt: '2026-08-19T12:00:00.000Z',
+  });
+
+  const refreshed = listSocialPostsByUserId(testUserId);
+
+  assert.deepEqual(refreshed.map((post) => post.id), [newer.id, older.id]);
+
+  deleteSocialPostById(older.id);
+  deleteSocialPostById(newer.id);
+});
+
 test('server weighted shuffle prioritizes higher-reaction user posts without removing randomness', () => {
   const posts = [
     { id: 'low', likes: 1 },
@@ -65,12 +89,12 @@ test('server weighted shuffle prioritizes higher-reaction user posts without rem
   assert.notDeepEqual(randomOrder.map((post) => post.id), ['high', 'middle', 'low']);
 });
 
-test('server weighted shuffle leaves page reserved slots untouched in mixed feeds', () => {
+test('server weighted shuffle puts newest page posts before reaction-weighted user posts', () => {
   const posts = [
     { id: 'user-low', userId: 'user-1', likes: 0 },
-    { id: 'page-a', userId: 'page-1', likes: 1000 },
+    { id: 'page-a', userId: 'page-1', likes: 1000, createdAt: '2026-08-19T12:00:00.000Z' },
     { id: 'user-high', userId: 'user-2', likes: 100 },
-    { id: 'page-b', userId: 'page-2', likes: 1000 },
+    { id: 'page-b', userId: 'page-2', likes: 1000, createdAt: '2026-08-18T12:00:00.000Z' },
     { id: 'user-middle', userId: 'user-3', likes: 25 },
   ];
 
@@ -80,10 +104,12 @@ test('server weighted shuffle leaves page reserved slots untouched in mixed feed
   });
 
   assert.deepEqual(shuffled.map((post) => post.id), [
-    'user-high',
     'page-a',
-    'user-middle',
     'page-b',
+    'user-high',
+    'user-middle',
     'user-low',
   ]);
+  assert.equal(shuffled[0].source, 'page');
+  assert.equal(shuffled[1].source, 'page');
 });

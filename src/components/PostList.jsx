@@ -1,6 +1,6 @@
 import PostCard from "./PostCard";
 
-export default function PostList({ posts = [], isLoading = false }) {
+export default function PostList({ posts = [], isLoading = false, onPostUpdated }) {
   if (posts.length === 0) {
     return (
       <div className="post-list-empty">
@@ -12,7 +12,11 @@ export default function PostList({ posts = [], isLoading = false }) {
   return (
     <div className="post-list">
       {posts.map((post) => (
-        <PostCard key={post.id} post={{ ...post, verified: true }} />
+        <PostCard
+          key={post.id}
+          post={{ ...post, verified: true }}
+          onPostUpdated={onPostUpdated}
+        />
       ))}
     </div>
   );
